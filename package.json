@@ -1,0 +1,42 @@
+{
+  "name": "lillith-writing-studio",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "test": "vitest run",
+    "test:bundle": "node scripts/check-bundle.mjs",
+    "test:release": "npm run build && npm run test:bundle && npm test && cargo test --manifest-path src-tauri/Cargo.toml --offline && python3 -m unittest discover -s python -p 'test_*.py' -v",
+    "desktop:build": "tauri build",
+    "desktop:linux": "tauri build --bundles deb,rpm",
+    "desktop:check": "tauri build --no-bundle",
+    "test:watch": "vitest",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.8.0",
+    "@tauri-apps/plugin-dialog": "^2.4.0",
+    "@tauri-apps/plugin-store": "^2.4.0",
+    "@tiptap/extension-placeholder": "^3.4.1",
+    "@tiptap/react": "^3.4.1",
+    "@tiptap/starter-kit": "^3.4.1",
+    "lucide-react": "^0.468.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.8.4",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@types/react": "^19.0.3",
+    "@types/react-dom": "^19.0.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "jsdom": "^25.0.1",
+    "typescript": "~5.7.2",
+    "vite": "^6.0.5",
+    "vitest": "^2.1.8"
+  }
+}

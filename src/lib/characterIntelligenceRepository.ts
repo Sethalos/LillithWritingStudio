@@ -1,0 +1,11 @@
+import { invoke } from "@tauri-apps/api/core";
+import type { CharacterArc, DynamicCharacterState, ProjectRelationship } from "../domain/models";
+const isTauri=()=>"__TAURI_INTERNALS__" in window;
+const read=<T>(key:string):T[]=>{try{return JSON.parse(localStorage.getItem(key)??"[]") as T[]}catch{return[]}};
+const write=<T extends {id:string}>(key:string,item:T)=>{const all=read<T>(key);localStorage.setItem(key,JSON.stringify([...all.filter(value=>value.id!==item.id),item]));return item};
+export const loadCharacterStates=(characterId:string):Promise<DynamicCharacterState[]>=>isTauri()?invoke("list_character_states",{characterId}):Promise.resolve(read<DynamicCharacterState>(`lillith:states:${characterId}`));
+export const saveCharacterState=(characterState:DynamicCharacterState):Promise<DynamicCharacterState>=>isTauri()?invoke("save_character_state",{characterState}):Promise.resolve(write(`lillith:states:${characterState.characterId}`,characterState));
+export const loadRelationships=():Promise<ProjectRelationship[]>=>isTauri()?invoke("list_relationships"):Promise.resolve(read<ProjectRelationship>("lillith:relationships"));
+export const saveRelationship=(relationship:ProjectRelationship):Promise<ProjectRelationship>=>isTauri()?invoke("save_relationship",{relationship}):Promise.resolve(write("lillith:relationships",relationship));
+export const loadCharacterArcs=(characterId:string):Promise<CharacterArc[]>=>isTauri()?invoke("list_character_arcs",{characterId}):Promise.resolve(read<CharacterArc>(`lillith:arcs:${characterId}`));
+export const saveCharacterArc=(characterArc:CharacterArc):Promise<CharacterArc>=>isTauri()?invoke("save_character_arc",{characterArc}):Promise.resolve(write(`lillith:arcs:${characterArc.characterId}`,characterArc));

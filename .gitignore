@@ -1,0 +1,16 @@
+node_modules/
+dist/
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
+target/
+src-tauri/target/
+.idea/
+.vscode/
+*.db
+*.db-shm
+*.db-wal
+*.log
+.env*
+!.env.example
+projects/

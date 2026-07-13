@@ -1,0 +1,6 @@
+import{invoke}from"@tauri-apps/api/core";import type{ResearchSource}from"../domain/models";const isTauri=()=>"__TAURI_INTERNALS__" in window;const key="lillith:research";const local=():ResearchSource[]=>{try{return JSON.parse(localStorage.getItem(key)??"[]")}catch{return[]}};
+export const loadResearchSources=():Promise<ResearchSource[]>=>isTauri()?invoke("list_research_sources"):Promise.resolve(local());
+export const saveResearchSource=async(researchSource:ResearchSource):Promise<ResearchSource>=>{if(isTauri())return invoke("save_research_source",{researchSource});const all=local();localStorage.setItem(key,JSON.stringify([researchSource,...all.filter(item=>item.id!==researchSource.id)]));return researchSource};
+export const deleteResearchSource=async(sourceId:string):Promise<void>=>{if(isTauri()){await invoke("delete_research_source",{sourceId});return}localStorage.setItem(key,JSON.stringify(local().filter(item=>item.id!==sourceId)))};
+export interface ResearchContextItem{id:string;title:string;author?:string;citation?:string;excerpt?:string;notes?:string;url?:string;reason:string;score:number}
+export const retrieveResearchContext=(query:string,documentId?:string,limit=6):Promise<ResearchContextItem[]>=>isTauri()?invoke("retrieve_research_context",{query,documentId:documentId??null,limit}):Promise.resolve([]);

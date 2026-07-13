@@ -1,0 +1,26 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Lillith Writing Studio",
+  "version": "0.1.0",
+  "identifier": "studio.lillith.writing",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [{ "label": "main", "title": "Lillith Writing Studio", "width": 1480, "height": 920, "minWidth": 1100, "minHeight": 720, "center": true, "resizable": true, "fullscreen": false }],
+    "security": { "csp": "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' asset: data:; connect-src 'self' ipc: http://ipc.localhost" }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "Productivity",
+    "shortDescription": "Private local-first AI authoring studio",
+    "longDescription": "A private desktop writing environment for character development, manuscript revision, story continuity, and reviewable AI editing.",
+    "copyright": "Copyright © 2026 Lillith Writing Studio",
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
+    "resources": ["../python/document_worker.py", "../python/requirements.txt"]
+  }
+}
