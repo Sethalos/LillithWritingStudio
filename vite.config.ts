@@ -10,6 +10,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
+          if (id.indexOf("/src/components/AiPanel.tsx") >= 0 || id.indexOf("/src/lib/trackedChanges.ts") >= 0) return "ai-workspace";
           if (id.indexOf("node_modules") < 0) return;
           if (id.indexOf("/@tiptap/") >= 0 || id.indexOf("/prosemirror-") >= 0) return "editor-vendor";
           if (id.indexOf("/react/") >= 0 || id.indexOf("/react-dom/") >= 0 || id.indexOf("/scheduler/") >= 0) return "react-vendor";

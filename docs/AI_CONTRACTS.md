@@ -1,5 +1,7 @@
 # AI, context, Voice Lock, and state contracts
 
+This document records the current low-level contracts. Product behavior and operation policy are defined in [AI_EDITOR.md](AI_EDITOR.md); retrieval behavior is defined in [RETRIEVAL_CONTEXT.md](RETRIEVAL_CONTEXT.md).
+
 The executable TypeScript contracts live in `src/domain/ai.ts` and `src/domain/models.ts`. This document records semantics that types alone cannot enforce.
 
 ## Provider interface

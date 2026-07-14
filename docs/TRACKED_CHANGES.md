@@ -19,3 +19,19 @@ Accept is a single backend operation. It re-reads the current section and reject
 Each `document_revisions.snapshot_path` points to the content of that exact revision and its SHA-256 hash. Before replacement, the prior revision snapshot is ensured; after atomic replacement, the new revision receives its own snapshot. History restore reads the selected snapshot and writes it as a new revision with source `undo`.
 
 Multi-change operations are change sets. The user may accept items independently. Overlapping accepted changes require rebase/review. A project rule created from a decision is a separate explicit action with provenance back to the decision.
+
+## Editing modes
+
+- **Suggest Only** records evidence and repair strategies without replacement text.
+- **Tracked Rewrite** produces a reviewable proposal and remains the default.
+- **Direct Apply** requires explicit author enablement and still creates revision history and a snapshot.
+
+These modes are implemented for selection-level AI operations. Suggest Only instructs the model to return the original selection unchanged and exposes findings/strategies without an apply action. Direct Apply requires a fresh acknowledgement for each operation; it still creates an auditable proposal and uses the same backend revision, hash, unique-target, and snapshot checks as tracked acceptance.
+
+## Granular review
+
+Small plain-text revisions are now decomposed into whitespace-preserving insert/delete/replace hunks with unchanged anchors. The review surface supports accepting or rejecting individual hunks and editing the composed proposed version. The exact reviewed text is submitted to the desktop backend and must pass the proposal's document revision, content hash, and unique-target checks before the snapshot-backed save occurs. Paragraph and scene rewrites continue to use side-by-side comparison.
+
+Granular choices are currently summarized in the final decision note rather than stored as independently queryable segment records. Regeneration with additional instructions is implemented: every regenerated proposal stores its parent proposal, instruction, and editing mode, and the backend rejects cross-document lineage.
+
+The rich-text segment representation remains an explicit unresolved design decision. It must preserve supported formatting marks, comments, scene breaks, annotations, and metadata, and it must fail closed when anchors no longer match.

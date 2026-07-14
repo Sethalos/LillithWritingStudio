@@ -8,8 +8,7 @@ afterEach(cleanup);
 describe("on-demand inspector workspaces", () => {
   it("keeps the editor immediate and loads specialist analysis on selection", async () => {
     render(<App/>);
-    fireEvent.click(screen.getByRole("button", { name: /Story Architecture/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Analysis" }));
+    fireEvent.click(screen.getByRole("button", { name: "Analytics" }));
     expect(await screen.findByText("Pacing Engine")).toBeVisible();
   });
 });

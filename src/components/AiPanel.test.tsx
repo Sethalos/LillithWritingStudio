@@ -85,4 +85,17 @@ describe("ai workspace", () => {
 
     await waitFor(() => expect(screen.getByText(/A live brainstorming reply\./i)).toBeVisible());
   });
+
+  it("requires an explicit per-operation acknowledgement for Direct Apply", () => {
+    const onRun=vi.fn();
+    render(<AiPanel workflow={workflow} context={context} decision="pending" modelLabel="Local · demo-model" onDecision={() => undefined} onRun={onRun} running={false} selectedText="The bell rang." />);
+    fireEvent.click(screen.getByRole("tab",{name:/review/i}));
+    fireEvent.click(screen.getByRole("button",{name:"Direct Apply"}));
+    const run=screen.getByRole("button",{name:/generate reviewed change/i});
+    expect(run).toBeDisabled();
+    fireEvent.click(screen.getByRole("checkbox",{name:/skips proposal review/i}));
+    expect(run).toBeEnabled();
+    fireEvent.click(run);
+    expect(onRun).toHaveBeenCalledWith("Strengthen character voice","direct-apply");
+  });
 });

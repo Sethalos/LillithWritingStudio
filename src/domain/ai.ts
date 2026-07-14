@@ -71,6 +71,7 @@ export interface AiProvider {
 }
 
 export type ProposalDecision = "pending" | "accepted" | "rejected" | "deferred" | "edited";
+export type EditingMode = "suggest-only" | "tracked-rewrite" | "direct-apply";
 export interface ChangeProposal {
   id: Id;
   runId: Id;

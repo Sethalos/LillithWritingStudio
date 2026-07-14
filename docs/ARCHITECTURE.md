@@ -14,6 +14,7 @@ Tauri command boundary
   |-- SQLite repository ---- metadata, canon, state, FTS, revisions
   |-- AI gateway ----------- remote/local OpenAI-compatible endpoints
   |-- Retrieval service ---- SQL + FTS5 + vector adapter + ranking
+  |-- Obsidian sync -------- approved-data Markdown projection + conflicts
   `-- Document jobs -------- optional Python sidecar for DOCX/EPUB/PDF
 ```
 
@@ -39,12 +40,16 @@ The React shell keeps navigation, the active manuscript section, TipTap, autosav
 | import-export | normalized document model and format workers |
 | settings | local application and per-project preferences |
 | backups | WAL-safe copies, snapshots, archive validation, retention |
+| dashboard | read models for focus, activity, tasks, findings, and system health |
+| obsidian-sync | vault configuration, projections, mappings, hashes, and conflicts |
 
 Modules expose application services and exchange IDs/domain values, not database rows. Provider SDK types and TipTap JSON do not leak into the core domain.
 
 ## Data ownership
 
-Each project is self-contained. `project.json` identifies format version and database location. Section files are durable author-accessible documents. SQLite is authoritative for tree organization, structured entities, story-positioned facts, FTS, proposals, and revision ancestry. Section saves update a temporary file, fsync, atomic rename, then update SQLite metadata in one command. On mismatch, the newer section file is retained and reconciliation is offered.
+Each project is self-contained. `project.json` identifies format version and database location. Section files are durable author-accessible documents. SQLite is authoritative for tree organization, structured entities, story-positioned facts, FTS, proposals, revision ancestry, dashboard operations, and Obsidian sync state. Section saves update a temporary file, fsync, atomic rename, then update SQLite metadata in one command. On mismatch, the newer section file is retained and reconciliation is offered.
+
+Obsidian Markdown is a human-readable projection, not a second structured authority. Version 1 exports approved data one way through a dedicated synchronizer. Generated regions are hash-checked and author-written regions are preserved. External generated-region edits produce conflicts rather than automatic imports or overwrites.
 
 ## Manuscript scale
 
@@ -96,3 +101,6 @@ SQLite uses foreign keys, WAL, busy timeout, and migrations in transactions. Eve
 4. Provider ports rather than direct SDK calls from UI.
 5. Optional sidecar rather than requiring Python for normal editing.
 6. Progressive indexing rather than blocking saves or project open.
+7. A daily command-center dashboard separate from the longer-form Project Workflow.
+8. A master Obsidian vault with project folders by default, while allowing independent project vaults.
+9. One-way, conflict-aware Obsidian projection before any controlled two-way synchronization.

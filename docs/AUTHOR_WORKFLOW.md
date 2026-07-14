@@ -1,6 +1,8 @@
 # Lillith Author Workflow
 
-This document is the product-level workflow reference for Lillith Studio.
+The Project Workflow is distinct from the Dashboard. The Dashboard is the daily command center and summarizes current work from owning modules. Project Workflow holds premise, Creative North Star, discovery, unresolved decisions, phase readiness, and next-step guidance. Both route into the same Character Studio, manuscript, AI Editor, memory, analysis, and publishing systems.
+
+This document is the product-level workflow reference for Lillith Writing Studio.
 
 The app is workflow-driven, not wizard-driven. A project should always answer:
 

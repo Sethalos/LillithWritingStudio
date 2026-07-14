@@ -2,7 +2,7 @@
 
 ## User outcome
 
-A user can create/open a local project, organize a book into chapters and scenes, edit one section with autosave, create a psychologically rich character and Voice Lock, select dialogue, inspect character-aware context, request an OpenAI-compatible rewrite, and accept or reject the proposed replacement. They can import or export a DOCX through a reviewed document job.
+A user can create/open a local project, organize a book into chapters and scenes, edit one section with autosave, create a psychologically rich character and Voice Lock, select dialogue, inspect character-aware context, request an OpenAI-compatible rewrite, and accept or reject the proposed replacement. They can import or export a DOCX through a reviewed document job. The expanded slice also projects an approved character page into a configured Obsidian-compatible vault without overwriting manual notes.
 
 ## Included
 
@@ -17,6 +17,7 @@ A user can create/open a local project, organize a book into chapters and scenes
 - Immutable AI proposal with before/after comparison and accept/reject/defer.
 - Revision/snapshot records.
 - DOCX import/export job boundary, then python-docx worker.
+- Basic one-way, conflict-aware Obsidian character-page projection.
 
 ## Acceptance criteria
 
@@ -29,7 +30,8 @@ A user can create/open a local project, organize a book into chapters and scenes
 7. Rejection/defer decisions persist and influence later context.
 8. Exported DOCX preserves headings, scene breaks, emphasis, and block quotes.
 9. Secrets are absent from SQLite, logs, exports, and frontend state.
+10. An approved character page can be created or updated in the configured vault while manual Markdown remains unchanged.
 
 ## Out of slice
 
-Vector retrieval, relationship graph, dynamic state editing, arc visualization, pacing maps, specialized non-compatible provider adapters, EPUB/PDF/KDP, series memory, plugins, and autonomous review rooms remain later milestones.
+Controlled two-way Obsidian synchronization, autonomous review rooms, and the sandboxed plugin API remain outside this slice. Most originally deferred intelligence, analysis, provider, publishing, and series capabilities have since been implemented.
