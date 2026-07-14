@@ -714,3 +714,37 @@ button { font:inherit; color:inherit; }
 .workflow-empty { margin:0; color:#857f76; font-size:10px; line-height:1.5; }
 .center-loading { min-height:100%; display:grid; place-items:center; text-align:center; }
 .center-loading i { width:22px; height:22px; border-color:#d26f8d transparent #d26f8d transparent; }
+
+/* 2026 usability pass: keep writing tools bounded and legacy panels readable. */
+.editor-shell,.editor-workspace,.manuscript-column { height:100%; min-height:0; overflow:hidden; }
+.editor-panes { overflow:auto; }
+.editor-panes>.paper { height:100%; min-height:0; overflow:auto; }
+.manuscript-column>.underline-tool { position:absolute; z-index:4; top:61px; left:154px; width:30px; height:30px; display:grid; place-items:center; border:0; border-radius:3px; color:#aab5bf; background:#101820; }
+.manuscript-column>.underline-tool:hover,.manuscript-column>.underline-tool.on { color:#ffc15b; background:#1c2b36; }
+.guided-next { min-width:190px; max-width:260px; height:34px; display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:7px; border:1px solid #31506a; border-radius:5px; padding:0 9px; color:#cce7fb; background:#10293b; text-align:left; }
+.guided-next span { color:#70b8e8; font-size:9px; text-transform:uppercase; letter-spacing:.08em; }
+.guided-next strong { overflow:hidden; font-size:10px; white-space:nowrap; text-overflow:ellipsis; }
+.project-cover-placeholder img { width:100%; height:100%; object-fit:cover; }
+
+:is(.character-studio,.bible-panel,.research-panel,.history-panel,.visuals-panel) { color:#d7e1e9; background:#09141d; }
+:is(.character-studio,.bible-panel,.research-panel,.history-panel,.visuals-panel) :is(input,textarea,select) { border-color:#294253; color:#edf6fc; background:#102534; font-size:12px; }
+:is(.character-studio,.bible-panel,.research-panel,.history-panel,.visuals-panel) option { color:#edf6fc; background:#102534; }
+:is(.character-studio,.bible-panel,.research-panel,.history-panel,.visuals-panel) :is(label>span,small,p,em,time) { color:#a9bbc8; font-size:max(10px,1em); }
+:is(.character-studio,.bible-panel,.research-panel,.history-panel,.visuals-panel) :is(header,nav,footer,.character-meta,.research-search,.bible-core,.facts,.timeline-editor,.timeline-map) { border-color:#203442; background:#0d1c27; }
+:is(.character-studio,.bible-panel,.research-panel,.history-panel,.visuals-panel) :is(aside,main,.character-form,.character-fields,.research-fields,.history-detail,.version-comparison>div) { border-color:#203442; color:#dce8f0; background:#0a1720; }
+.character-field { font-size:12px; }
+.character-field textarea { min-height:70px; white-space:pre-wrap; }
+.character-save span { color:#ffb3b3; font-size:11px; }
+.bible-layout { grid-template-columns:minmax(180px,24%) 1fr; }
+.bible-layout>aside strong,.research-layout>aside strong,.history-layout>aside>button strong,.timeline-editor>header strong { color:#e6f0f6; font-size:12px; }
+.bible-layout>aside small,.research-layout>aside small,.history-layout>aside>button small,.history-layout>aside>button time { font-size:10px; }
+.bible-core label>span,.facts label>span,.research-fields label>span,.timeline-fields label>span { color:#b8cbd8; font-size:11px; }
+.bible-core input,.bible-core textarea,.bible-core select,.facts input,.facts textarea,.facts select,.research-fields input,.research-fields textarea,.research-fields select,.timeline-fields input,.timeline-fields textarea,.timeline-fields select { font-size:12px; }
+.research-panel>header strong,.history-panel>header strong { color:#edf6fc; font-size:18px; }
+.research-panel>header small,.history-panel>header small { font-size:11px; }
+.research-search select { min-width:130px; color:#e9f5fc; background:#123047; font-size:11px; }
+.history-detail h3 { color:#edf6fc; font-size:16px; }
+.history-detail button,.timeline-map>header button,.research-panel button,.bible-panel button { border-color:#31506a; color:#d9efff; background:#123047; font-size:11px; }
+.version-comparison article { color:#d4e0e8; font-size:12px; }
+.timeline-line>button strong { color:#e7f1f7; font-size:11px; }
+.timeline-line>button small,.timeline-line>button em { font-size:9px; }

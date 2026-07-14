@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
-import { ChevronDown, CircleHelp, Search, Settings, ShieldCheck } from "lucide-react";
+import { ArrowRight, ChevronDown, CircleHelp, Search, Settings, ShieldCheck } from "lucide-react";
 import { Binder } from "./components/Binder";
 import { EditorPane } from "./components/EditorPane";
 import { AiPanel } from "./components/AiPanel";
@@ -182,6 +182,9 @@ export function App() {
           ))}
         </nav>
         <div className="topbar-actions">
+          <button className="guided-next" onClick={() => routeWorkspace(workflow.recommendation.workspaceTarget)} title={workflow.recommendation.reason}>
+            <span>Next</span><strong>{workflow.recommendation.title}</strong><ArrowRight size={14}/>
+          </button>
           <label className="global-search">
             <Search size={14} />
             <input aria-label="Search project" placeholder="Search (Ctrl+K)" />

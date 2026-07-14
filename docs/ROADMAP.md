@@ -1,5 +1,7 @@
 # Development roadmap
 
+> Current implementation and hands-on testing status is maintained in [`CURRENT_STATUS.md`](CURRENT_STATUS.md).
+
 ## Approved next sequence — command-center expansion
 
 This sequence supersedes feature-order implications in the historical phase list below. Existing functionality remains in place throughout the transition.

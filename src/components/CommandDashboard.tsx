@@ -74,7 +74,7 @@ export function CommandDashboard({ project, nodes, characters, workflow, activeD
 
   return <div className="command-dashboard">{loadError&&<div className="dashboard-load-error" role="alert">{loadError}</div>}
     <section className="dashboard-project-card dashboard-card">
-      <div className="project-cover-placeholder"><BookOpen size={32}/><span>{project.title.slice(0, 2).toUpperCase()}</span></div>
+      <div className="project-cover-placeholder">{project.coverImageDataUrl?<img src={project.coverImageDataUrl} alt={`${project.title} project cover`}/>:<><BookOpen size={32}/><span>{project.title.slice(0, 2).toUpperCase()}</span></>}</div>
       <div className="dashboard-project-copy"><small>ACTIVE PROJECT</small><h1>{project.title}</h1><p>{workflow.projectBrief.seriesTitle || workflow.projectBrief.genre || "Novel in progress"}</p>
         <div className="project-facts"><span>{workflow.projectBrief.genre || "Genre not set"}</span><span>{workflow.projectBrief.pov || "POV not set"}</span><span>{workflow.projectBrief.tense || "Tense not set"}</span><span>{chapters.length} chapters</span></div>
         <div className="word-progress"><div><span>Word count</span><strong>{totalWords.toLocaleString()}{targetWords ? ` / ${targetWords.toLocaleString()}` : ""}</strong></div><div className="progress-track"><i style={{width:`${progress}%`}}/></div><b>{targetWords ? `${progress}%` : "Set target"}</b></div>

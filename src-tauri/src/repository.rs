@@ -42,7 +42,7 @@ struct ProjectManifest { format_version: u32, project_id: String, title: String,
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ProjectDto { pub id: String, pub title: String, pub author: Option<String>, pub locale: String, pub created_at: String, pub updated_at: String, pub root_path: String }
+pub struct ProjectDto { pub id: String, pub title: String, pub author: Option<String>, pub cover_image_data_url: Option<String>, pub locale: String, pub created_at: String, pub updated_at: String, pub root_path: String }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -168,7 +168,8 @@ impl ProjectRepository {
     }
 
     pub fn workspace(&self) -> Result<WorkspaceDto, RepositoryError> {
-        let project = self.connection.query_row("SELECT id,title,author,locale,created_at,updated_at FROM projects LIMIT 1", [], |row| Ok(ProjectDto { id: row.get(0)?, title: row.get(1)?, author: row.get(2)?, locale: row.get(3)?, created_at: row.get(4)?, updated_at: row.get(5)?, root_path: self.root.display().to_string() }))?;
+        let cover_image_data_url = self.load_project_setting_json("project_cover_image")?.and_then(|value| value.as_str().map(str::to_owned));
+        let project = self.connection.query_row("SELECT id,title,author,locale,created_at,updated_at FROM projects LIMIT 1", [], |row| Ok(ProjectDto { id: row.get(0)?, title: row.get(1)?, author: row.get(2)?, cover_image_data_url: cover_image_data_url.clone(), locale: row.get(3)?, created_at: row.get(4)?, updated_at: row.get(5)?, root_path: self.root.display().to_string() }))?;
         let mut statement = self.connection.prepare("SELECT id,project_id,parent_id,kind,title,synopsis,scene_goal,scene_type,scene_location,word_goal,tags_json,position,pov_character_id,word_count,content_path,revision,updated_at FROM manuscript_nodes WHERE deleted_at IS NULL ORDER BY parent_id,position")?;
         let rows = statement.query_map([], |row| {
             let content_path: Option<String> = row.get(14)?;let tags_json:String=row.get(10)?;
@@ -289,15 +290,15 @@ impl ProjectRepository {
     }
 
     pub fn load_project_setting_json(&self, key: &str) -> Result<Option<serde_json::Value>, RepositoryError> {
-        let workspace = self.workspace()?;
-        let stored: Option<String> = self.connection.query_row("SELECT value_json FROM project_settings WHERE project_id=?1 AND key=?2", params![workspace.project.id, key], |row| row.get(0)).optional()?;
+        let project_id:String=self.connection.query_row("SELECT id FROM projects LIMIT 1",[],|row|row.get(0))?;
+        let stored: Option<String> = self.connection.query_row("SELECT value_json FROM project_settings WHERE project_id=?1 AND key=?2", params![project_id, key], |row| row.get(0)).optional()?;
         Ok(stored.map(|json| serde_json::from_str(&json)).transpose()?)
     }
 
     pub fn save_project_setting_json(&self, key: &str, value: &serde_json::Value) -> Result<(), RepositoryError> {
-        let workspace = self.workspace()?;
+        let project_id:String=self.connection.query_row("SELECT id FROM projects LIMIT 1",[],|row|row.get(0))?;
         let now = Utc::now().to_rfc3339();
-        self.connection.execute("INSERT INTO project_settings(project_id,key,value_json,updated_at) VALUES(?1,?2,?3,?4) ON CONFLICT(project_id,key) DO UPDATE SET value_json=excluded.value_json,updated_at=excluded.updated_at", params![workspace.project.id, key, serde_json::to_string(value)?, now])?;
+        self.connection.execute("INSERT INTO project_settings(project_id,key,value_json,updated_at) VALUES(?1,?2,?3,?4) ON CONFLICT(project_id,key) DO UPDATE SET value_json=excluded.value_json,updated_at=excluded.updated_at", params![project_id, key, serde_json::to_string(value)?, now])?;
         Ok(())
     }
 

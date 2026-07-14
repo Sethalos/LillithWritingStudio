@@ -35,8 +35,11 @@ fn save_document(state: tauri::State<'_, AppState>, document_id: String, content
 }
 
 #[tauri::command]
-fn create_project(state: tauri::State<'_, AppState>, parent_path: String, title: String) -> Result<WorkspaceDto, String> {
+fn create_project(state: tauri::State<'_, AppState>, parent_path: String, title: String, cover_image_data_url: Option<String>) -> Result<WorkspaceDto, String> {
     let repository = ProjectRepository::create(Path::new(&parent_path), &title).map_err(|error| error.to_string())?;
+    if let Some(cover) = cover_image_data_url.filter(|value| !value.is_empty()) {
+        repository.save_project_setting_json("project_cover_image", &serde_json::Value::String(cover)).map_err(|error| error.to_string())?;
+    }
     let workspace = repository.workspace().map_err(|error| error.to_string())?;
     *state.repository.lock().map_err(|_| "Repository lock poisoned".to_string())? = Some(repository);
     Ok(workspace)
