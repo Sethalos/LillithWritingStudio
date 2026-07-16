@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, Clock3, Eye, MessageSquare, RotateCcw, Send, Sparkles, X } from "lucide-react";
 import type { ChangeProposal, ContextPackage, EditingMode, ProposalDecision } from "../domain/ai";
-import type { ReviewProposal } from "../lib/aiEditorRepository";
+import type { ProposalSegmentDecision, ReviewProposal } from "../lib/aiEditorRepository";
 import { configuredExecution, estimateExecutionCost } from "../lib/providerRepository";
 import { runAiChat } from "../lib/aiChatRepository";
 import type { WorkflowState } from "../domain/workflow";
@@ -14,7 +14,7 @@ interface Props {
   context: ContextPackage;
   proposal?: ReviewProposal | ChangeProposal;
   decision: ProposalDecision;
-  onDecision: (d: ProposalDecision, replacement?: string) => void;
+  onDecision: (d: ProposalDecision, replacement?: string, segments?:ProposalSegmentDecision[]) => void;
   modelLabel: string;
   onRun: (instruction: string, mode: EditingMode) => void;
   running: boolean;
@@ -377,7 +377,7 @@ export function AiPanel({ workflow, context, proposal, decision, onDecision, mod
               </div>}
               {editingMode==="suggest-only" ? <div className="suggest-only-result"><strong>No manuscript changes drafted.</strong><p>{proposal.strategies.join(" · ")||"Use the finding and evidence above to guide your revision."}</p><button onClick={()=>onDecision("deferred")}><Clock3 size={15}/> Save finding for later</button></div> : decision === "pending" ? (
                 <><div className="regenerate-box"><input value={regenerationInstruction} onChange={event=>setRegenerationInstruction(event.target.value)} placeholder="Additional instructions for another version…"/><button disabled={running||!regenerationInstruction.trim()} onClick={()=>onRun(`[Regenerate parent=${proposal.id}] ${regenerationInstruction.trim()}`,"tracked-rewrite")}><RotateCcw size={14}/> Regenerate</button></div><div className="decision-bar">
-                  <button className="accept" onClick={() => onDecision(editingProposal ? "edited" : "accepted", editingProposal ? editedProposal : composeTrackedText(changeHunks, acceptedHunks))}><Check size={16} /> Apply reviewed version</button>
+                  <button className="accept" onClick={() => {const replacement=editingProposal?editedProposal:composeTrackedText(changeHunks,acceptedHunks);const segments:ProposalSegmentDecision[]=editingProposal?[{segmentId:"author-edit",ordinal:0,beforeText:proposal.before,afterText:editedProposal,decision:"edited"}]:changeHunks.map((hunk,ordinal)=>({segmentId:hunk.id,ordinal,beforeText:hunk.before,afterText:hunk.after,decision:hunk.changed?(acceptedHunks.has(hunk.id)?"accepted":"rejected"):"unchanged"}));onDecision(editingProposal?"edited":"accepted",replacement,segments)}}><Check size={16} /> Apply reviewed version</button>
                   <button onClick={() => onDecision("rejected")}><X size={16} /> Reject</button>
                   <button onClick={() => onDecision("deferred")}><Clock3 size={16} /> Defer</button>
                 </div></>

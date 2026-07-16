@@ -1,10 +1,10 @@
 # Current project status
 
-Last updated: 2026-07-14
+Last updated: 2026-07-16
 
 ## Current checkpoint
 
-The command-center foundation and safe AI-review foundation are complete. The application has now entered hands-on usability testing of the first authoring slice using a newly created project and a short four-character dungeon story.
+The command-center foundation and safe AI-review foundation are complete. Granular tracked-review decisions now persist as queryable audit records and appear in Revision History. The application remains in hands-on usability testing of the first authoring slice using a newly created project and a short four-character dungeon story.
 
 The desktop application remains runnable. Local project creation, manuscript autosave, character records, Story Bible records, research, revision history, timeline, relationships, AI provider configuration, tracked proposals, Obsidian synchronization, import/export, and backups have implemented data paths rather than decorative mock data.
 
@@ -21,11 +21,27 @@ The desktop application remains runnable. Local project creation, manuscript aut
 - Increased undersized text and improved field, dropdown, button, and option contrast in Characters, Story Bible, Research, Revision History, Timeline, and Relationships.
 - Corrected a project-settings repository recursion exposed while adding cover persistence.
 
+## Tracked-review audit milestone
+
+- Added migration 15 for ordered proposal-segment decisions.
+- Persisted accepted, rejected, unchanged, and author-edited segments with the proposal decision instead of flattening partial review into a general note.
+- Required the Rust backend to recompose the submitted segment map and reject it when it does not exactly match the reviewed replacement text.
+- Exposed the stored segment outcome in Revision History with applied, kept-original, and author-edited labels.
+- Preserved the existing revision/hash, unique-target, snapshot, and single-decision guards.
+
+## Existing-project cover milestone
+
+- Added a Project Identity settings surface with a live cover preview.
+- Added guarded PNG, JPEG, and WebP replacement for existing local projects, limited to 6 MB.
+- Added explicit cover removal and immediate dashboard/project-state refresh without reopening the project.
+- Added backend validation and replace/remove persistence coverage.
+
 ## Verification at pause point
 
 - Production frontend build: passing.
-- Frontend test suite: 42 tests passing.
-- Rust/backend test suite: 42 tests passing.
+- Frontend test suite: 43 tests passing.
+- Rust/backend test suite: 44 tests passing.
+- Python document-worker test suite: 4 tests passing.
 - Focused editor and Comments & Notes tests: passing.
 - Git whitespace/error check: passing.
 - `cargo fmt --check` is unavailable because the Rust `rustfmt` component is not installed in this environment; no dependency was installed solely for formatting.
@@ -33,15 +49,13 @@ The desktop application remains runnable. Local project creation, manuscript aut
 ## Known follow-up work
 
 1. Perform a second visual/usability pass on the repaired screens using the new test project.
-2. Add project-cover replacement/removal for an existing project. The original failed cover selection could not be recovered because the older build never persisted it.
-3. Improve Research empty-state language so it is explicit that the search box filters saved sources and is not an internet search engine.
-4. Explain or progressively disclose optional Story Bible structured facts; keep them because structured retrieval and continuity checks use them.
-5. Isolate AI-assisted Story Bible extraction more clearly from manual Story Bible editing and improve provider-error messages.
-6. Configure and verify an actual AI provider/model. The observed Ollama HTTP 404 indicates an endpoint/model configuration problem, not a requirement for manual pages to depend on Ollama.
-7. Exercise the central acceptance path: select manuscript text, invoke a character-aware tracked rewrite, inspect context, accept/reject/edit/regenerate, and confirm the accepted snapshot.
-8. Continue the improved tracked-change interface: inline small-change review and partial segment decisions remain the next major implementation milestone.
+2. Improve Research empty-state language so it is explicit that the search box filters saved sources and is not an internet search engine.
+3. Explain or progressively disclose optional Story Bible structured facts; keep them because structured retrieval and continuity checks use them.
+4. Isolate AI-assisted Story Bible extraction more clearly from manual Story Bible editing and improve provider-error messages.
+5. Configure and verify an actual AI provider/model. The observed Ollama HTTP 404 indicates an endpoint/model configuration problem, not a requirement for manual pages to depend on Ollama.
+6. Exercise the central acceptance path: select manuscript text, invoke a character-aware tracked rewrite, inspect context, accept/reject/edit/regenerate, and confirm the accepted snapshot.
+7. Continue the improved tracked-change interface: persisted partial segment decisions are complete; rich-text mark-aware segmentation and broader change-set review remain.
 
 ## Exact restart point
 
 Open the newly created test project and repeat the first pass through Dashboard, Manuscript, Comments & Notes, Research, Revision History, Characters, Story Bible, and Timeline/Relationships. Record any remaining readability or navigation defects. Then configure a provider in Models and run the first end-to-end character-aware tracked rewrite before expanding feature scope.
-

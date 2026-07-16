@@ -21,6 +21,7 @@ const MIGRATION_0011: &str = include_str!("../migrations/0011_scene_metadata.sql
 const MIGRATION_0012: &str = include_str!("../migrations/0012_dashboard_operations.sql");
 const MIGRATION_0013: &str = include_str!("../migrations/0013_obsidian_sync.sql");
 const MIGRATION_0014: &str = include_str!("../migrations/0014_proposal_lineage.sql");
+const MIGRATION_0015: &str = include_str!("../migrations/0015_proposal_segment_decisions.sql");
 
 #[derive(Debug, Error)]
 pub enum RepositoryError {
@@ -84,6 +85,10 @@ pub struct PreparedEditorRun { pub run_id: String, pub context_id: String, pub d
 #[serde(rename_all = "camelCase")]
 pub struct AcceptedProposalDto { pub content: String, pub revision: i64, pub proposal_id: String }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProposalSegmentDecisionDto { pub segment_id: String, pub ordinal: i64, pub before_text: String, pub after_text: String, pub decision: String }
+
 #[derive(Debug,Serialize)]
 #[serde(rename_all="camelCase")]
 pub struct RevisionDto{pub id:String,pub document_id:String,pub revision:i64,pub content_hash:String,pub source:String,pub created_at:String,pub content:String,pub word_count:usize}
@@ -145,7 +150,7 @@ impl ProjectRepository {
         fs::create_dir_all(root.join("manuscript/sections"))?;
         let connection = Connection::open(root.join("database/project.sqlite3"))?;
         connection.execute_batch("PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA busy_timeout=5000;")?;
-        let initialized:bool=connection.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='schema_migrations')",[],|row|row.get(0))?;if !initialized{connection.execute_batch(MIGRATION_0001)?;}for(version,migration)in[(2,MIGRATION_0002),(3,MIGRATION_0003),(4,MIGRATION_0004),(5,MIGRATION_0005),(6,MIGRATION_0006),(7,MIGRATION_0007),(8,MIGRATION_0008),(9,MIGRATION_0009),(10,MIGRATION_0010),(11,MIGRATION_0011),(12,MIGRATION_0012),(13,MIGRATION_0013),(14,MIGRATION_0014)]{let applied:bool=connection.query_row("SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version=?1)",[version],|row|row.get(0))?;if !applied{connection.execute_batch(migration)?;}}
+        let initialized:bool=connection.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='schema_migrations')",[],|row|row.get(0))?;if !initialized{connection.execute_batch(MIGRATION_0001)?;}for(version,migration)in[(2,MIGRATION_0002),(3,MIGRATION_0003),(4,MIGRATION_0004),(5,MIGRATION_0005),(6,MIGRATION_0006),(7,MIGRATION_0007),(8,MIGRATION_0008),(9,MIGRATION_0009),(10,MIGRATION_0010),(11,MIGRATION_0011),(12,MIGRATION_0012),(13,MIGRATION_0013),(14,MIGRATION_0014),(15,MIGRATION_0015)]{let applied:bool=connection.query_row("SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version=?1)",[version],|row|row.get(0))?;if !applied{connection.execute_batch(migration)?;}}
         let repository=Self { root, connection };repository.refresh_missing_semantic_chunks()?;Ok(repository)
     }
 
@@ -302,6 +307,13 @@ impl ProjectRepository {
         Ok(())
     }
 
+    pub fn save_project_cover(&self, cover: Option<&str>) -> Result<ProjectDto, RepositoryError> {
+        if let Some(value)=cover { if value.len()>8*1024*1024||!(value.starts_with("data:image/png;base64,")||value.starts_with("data:image/jpeg;base64,")||value.starts_with("data:image/webp;base64,")){return Err(RepositoryError::InvalidProject("Project cover must be a PNG, JPEG, or WebP image no larger than 6 MB".into()))} }
+        self.save_project_setting_json("project_cover_image",&cover.map(serde_json::Value::from).unwrap_or(serde_json::Value::Null))?;
+        self.connection.execute("UPDATE projects SET updated_at=?1",[Utc::now().to_rfc3339()])?;
+        Ok(self.workspace()?.project)
+    }
+
     pub fn load_series_settings(&self)->Result<serde_json::Value,RepositoryError>{let workspace=self.workspace()?;let stored:Option<(String,String,Option<i64>,String)>=self.connection.query_row("SELECT series_name,book_title,book_number,updated_at FROM series_settings WHERE project_id=?1",[&workspace.project.id],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?))).optional()?;Ok(if let Some((series,book,number,updated))=stored{serde_json::json!({"projectId":workspace.project.id,"seriesName":series,"bookTitle":book,"bookNumber":number,"updatedAt":updated})}else{serde_json::json!({"projectId":workspace.project.id,"seriesName":"","bookTitle":workspace.project.title,"bookNumber":null,"updatedAt":null})})}
     pub fn save_series_settings(&self,settings:serde_json::Value)->Result<serde_json::Value,RepositoryError>{let project_id=settings.get("projectId").and_then(|value|value.as_str()).ok_or_else(||RepositoryError::InvalidProject("Series settings require a project".into()))?;let series=settings.get("seriesName").and_then(|value|value.as_str()).unwrap_or("").trim();let book=settings.get("bookTitle").and_then(|value|value.as_str()).unwrap_or("").trim();if series.len()>300||book.is_empty()||book.len()>300{return Err(RepositoryError::InvalidProject("Series and book titles must be valid".into()))}let number=settings.get("bookNumber").and_then(|value|value.as_i64());if number.is_some_and(|value|value<1||value>10000){return Err(RepositoryError::InvalidProject("Book number must be positive".into()))}let now=Utc::now().to_rfc3339();self.connection.execute("INSERT INTO series_settings(project_id,series_name,book_title,book_number,updated_at) VALUES(?1,?2,?3,?4,?5) ON CONFLICT(project_id) DO UPDATE SET series_name=excluded.series_name,book_title=excluded.book_title,book_number=excluded.book_number,updated_at=excluded.updated_at",params![project_id,series,book,number,now])?;Ok(serde_json::json!({"projectId":project_id,"seriesName":series,"bookTitle":book,"bookNumber":number,"updatedAt":now}))}
     pub fn list_series_entries(&self)->Result<Vec<serde_json::Value>,RepositoryError>{let mut statement=self.connection.prepare("SELECT id,project_id,category,subject,field_name,value,canon_status,source_book,notes,created_at,updated_at FROM series_continuity_entries WHERE deleted_at IS NULL ORDER BY subject COLLATE NOCASE,field_name COLLATE NOCASE")?;let values=statement.query_map([],|row|Ok(serde_json::json!({"id":row.get::<_,String>(0)?,"projectId":row.get::<_,String>(1)?,"category":row.get::<_,String>(2)?,"subject":row.get::<_,String>(3)?,"fieldName":row.get::<_,String>(4)?,"value":row.get::<_,String>(5)?,"canonStatus":row.get::<_,String>(6)?,"sourceBook":row.get::<_,Option<String>>(7)?,"notes":row.get::<_,Option<String>>(8)?,"createdAt":row.get::<_,String>(9)?,"updatedAt":row.get::<_,String>(10)?})))?.collect::<Result<Vec<_>,_>>()?;Ok(values)}
@@ -407,7 +419,7 @@ impl ProjectRepository {
         self.connection.execute("UPDATE change_proposals SET parent_proposal_id=?1,regeneration_instruction=?2,editing_mode=?3 WHERE id=?4",params![parent_proposal_id,instruction,editing_mode,proposal_id])?;Ok(())
     }
 
-    pub fn accept_editor_proposal(&self, proposal_id: &str, replacement: Option<&str>) -> Result<AcceptedProposalDto, RepositoryError> {
+    pub fn accept_editor_proposal(&self, proposal_id: &str, replacement: Option<&str>, segments: Option<&[ProposalSegmentDecisionDto]>) -> Result<AcceptedProposalDto, RepositoryError> {
         let (document_id, base_revision, base_hash, before, after): (String, i64, String, String, String) = self.connection.query_row("SELECT document_id,base_revision,base_content_hash,before_text,after_text FROM change_proposals WHERE id=?1", [proposal_id], |row| Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?,row.get(4)?))).optional()?.ok_or_else(|| RepositoryError::InvalidProject("Proposal was not found".into()))?;
         let already_decided: bool = self.connection.query_row("SELECT EXISTS(SELECT 1 FROM proposal_decisions WHERE proposal_id=?1)", [proposal_id], |row| row.get(0))?;
         if already_decided { return Err(RepositoryError::InvalidProject("This proposal has already been decided".into())); }
@@ -417,10 +429,22 @@ impl ProjectRepository {
         if current.matches(&before).count() != 1 { return Err(RepositoryError::InvalidProject("The affected text is no longer uniquely identifiable".into())); }
         let accepted = replacement.unwrap_or(&after);
         if accepted.trim().is_empty() && !after.trim().is_empty() { return Err(RepositoryError::InvalidProject("The reviewed replacement cannot be empty".into())); }
+        if let Some(segments)=segments {
+            if segments.is_empty(){return Err(RepositoryError::InvalidProject("The reviewed segment map cannot be empty".into()))}
+            let mut ordered=segments.to_vec();ordered.sort_by_key(|segment|segment.ordinal);let mut segment_ids=std::collections::HashSet::new();
+            for(index,segment)in ordered.iter().enumerate(){
+                if segment.ordinal!=index as i64||segment.segment_id.trim().is_empty()||!segment_ids.insert(segment.segment_id.as_str())||!matches!(segment.decision.as_str(),"accepted"|"rejected"|"unchanged"|"edited"){return Err(RepositoryError::InvalidProject("The reviewed segment map is invalid".into()))}
+            }
+            let composed=ordered.iter().map(|segment|if matches!(segment.decision.as_str(),"accepted"|"unchanged"|"edited"){segment.after_text.as_str()}else{segment.before_text.as_str()}).collect::<String>();
+            if composed!=accepted{return Err(RepositoryError::InvalidProject("The reviewed segment map does not match the accepted text".into()))}
+        }
         let updated = current.replacen(&before, accepted, 1);
         let next = self.save_document_with_source(&document_id, &updated, revision, "ai-accepted")?;
         let note=if accepted==after{"Applied complete proposal through revision precondition"}else{"Applied author-reviewed partial or edited proposal through revision precondition"};
-        self.connection.execute("INSERT INTO proposal_decisions(id,proposal_id,decision,decided_at,note) VALUES(?1,?2,'accepted',?3,?4)", params![Uuid::new_v4().to_string(), proposal_id, Utc::now().to_rfc3339(),note])?;
+        let decision_id=Uuid::new_v4().to_string();let transaction=self.connection.unchecked_transaction()?;
+        transaction.execute("INSERT INTO proposal_decisions(id,proposal_id,decision,decided_at,note) VALUES(?1,?2,'accepted',?3,?4)", params![decision_id, proposal_id, Utc::now().to_rfc3339(),note])?;
+        if let Some(segments)=segments{for segment in segments{transaction.execute("INSERT INTO proposal_segment_decisions(id,proposal_decision_id,proposal_id,segment_id,ordinal,before_text,after_text,decision) VALUES(?1,?2,?3,?4,?5,?6,?7,?8)",params![Uuid::new_v4().to_string(),decision_id,proposal_id,segment.segment_id,segment.ordinal,segment.before_text,segment.after_text,segment.decision])?;}}
+        transaction.commit()?;
         Ok(AcceptedProposalDto { content: updated, revision: next, proposal_id: proposal_id.into() })
     }
 
@@ -559,7 +583,7 @@ impl ProjectRepository {
     pub fn document_history(&self,document_id:&str)->Result<RevisionHistoryDto,RepositoryError>{
         let exists:bool=self.connection.query_row("SELECT EXISTS(SELECT 1 FROM manuscript_nodes WHERE id=?1 AND deleted_at IS NULL)",[document_id],|row|row.get(0))?;if !exists{return Err(RepositoryError::MissingDocument(document_id.into()))}
         let mut statement=self.connection.prepare("SELECT id,document_id,revision,content_hash,snapshot_path,source,created_at FROM document_revisions WHERE document_id=?1 ORDER BY revision DESC")?;let rows=statement.query_map([document_id],|row|Ok((row.get::<_,String>(0)?,row.get::<_,String>(1)?,row.get::<_,i64>(2)?,row.get::<_,String>(3)?,row.get::<_,String>(4)?,row.get::<_,String>(5)?,row.get::<_,String>(6)?)))?.collect::<Result<Vec<_>,_>>()?;let revisions=rows.into_iter().map(|(id,document_id,revision,hash,path,source,created_at)|{let content=fs::read_to_string(self.root.join(path)).unwrap_or_default();let word_count=content.split_whitespace().count();RevisionDto{id,document_id,revision,content_hash:hash,source,created_at,content,word_count}}).collect();
-        let mut proposal_statement=self.connection.prepare("SELECT p.id,p.issue,p.before_text,p.after_text,p.created_at,COALESCE(d.decision,'pending'),d.decided_at,r.model_id,pc.label FROM change_proposals p JOIN change_sets cs ON cs.id=p.change_set_id LEFT JOIN proposal_decisions d ON d.proposal_id=p.id LEFT JOIN ai_runs r ON r.id=cs.ai_run_id LEFT JOIN provider_configs pc ON pc.id=r.provider_config_id WHERE p.document_id=?1 ORDER BY p.created_at DESC")?;let proposals=proposal_statement.query_map([document_id],|row|Ok(serde_json::json!({"id":row.get::<_,String>(0)?,"issue":row.get::<_,String>(1)?,"before":row.get::<_,String>(2)?,"after":row.get::<_,String>(3)?,"createdAt":row.get::<_,String>(4)?,"decision":row.get::<_,String>(5)?,"decidedAt":row.get::<_,Option<String>>(6)?,"model":row.get::<_,Option<String>>(7)?,"provider":row.get::<_,Option<String>>(8)?})))?.collect::<Result<Vec<_>,_>>()?;Ok(RevisionHistoryDto{revisions,proposals})
+        let mut proposal_statement=self.connection.prepare("SELECT p.id,p.issue,p.before_text,p.after_text,p.created_at,COALESCE(d.decision,'pending'),d.decided_at,r.model_id,pc.label FROM change_proposals p JOIN change_sets cs ON cs.id=p.change_set_id LEFT JOIN proposal_decisions d ON d.proposal_id=p.id LEFT JOIN ai_runs r ON r.id=cs.ai_run_id LEFT JOIN provider_configs pc ON pc.id=r.provider_config_id WHERE p.document_id=?1 ORDER BY p.created_at DESC")?;let mut proposals=proposal_statement.query_map([document_id],|row|Ok(serde_json::json!({"id":row.get::<_,String>(0)?,"issue":row.get::<_,String>(1)?,"before":row.get::<_,String>(2)?,"after":row.get::<_,String>(3)?,"createdAt":row.get::<_,String>(4)?,"decision":row.get::<_,String>(5)?,"decidedAt":row.get::<_,Option<String>>(6)?,"model":row.get::<_,Option<String>>(7)?,"provider":row.get::<_,Option<String>>(8)?})))?.collect::<Result<Vec<_>,_>>()?;for proposal in &mut proposals{let id=proposal["id"].as_str().unwrap_or_default();let mut statement=self.connection.prepare("SELECT segment_id,ordinal,before_text,after_text,decision FROM proposal_segment_decisions WHERE proposal_id=?1 ORDER BY ordinal")?;let segments=statement.query_map([id],|row|Ok(serde_json::json!({"segmentId":row.get::<_,String>(0)?,"ordinal":row.get::<_,i64>(1)?,"beforeText":row.get::<_,String>(2)?,"afterText":row.get::<_,String>(3)?,"decision":row.get::<_,String>(4)?})))?.collect::<Result<Vec<_>,_>>()?;proposal["segments"]=serde_json::Value::Array(segments);}Ok(RevisionHistoryDto{revisions,proposals})
     }
 
     pub fn restore_revision(&self,document_id:&str,revision:i64)->Result<RestoredRevisionDto,RepositoryError>{let path:String=self.connection.query_row("SELECT snapshot_path FROM document_revisions WHERE document_id=?1 AND revision=?2",params![document_id,revision],|row|row.get(0)).optional()?.ok_or_else(||RepositoryError::InvalidProject("Revision was not found".into()))?;let content=fs::read_to_string(self.root.join(path))?;let current:i64=self.connection.query_row("SELECT revision FROM manuscript_nodes WHERE id=?1",[document_id],|row|row.get(0))?;let next=self.save_document_with_source(document_id,&content,current,"undo")?;Ok(RestoredRevisionDto{content,revision:next,restored_from:revision})}
@@ -647,8 +671,10 @@ mod tests {
         let parent = tempfile::tempdir().unwrap();
         let repo = ProjectRepository::create(parent.path(), "Test Novel").unwrap();
         let count: i64 = repo.connection.query_row("SELECT COUNT(*) FROM schema_migrations", [], |row| row.get(0)).unwrap();
-        assert_eq!(count, 14);
+        assert_eq!(count, 15);
     }
+    #[test]
+    fn existing_project_cover_can_be_replaced_and_removed(){let parent=tempfile::tempdir().unwrap();let repo=ProjectRepository::create(parent.path(),"Cover Test").unwrap();let cover="data:image/png;base64,aGVsbG8=";assert_eq!(repo.save_project_cover(Some(cover)).unwrap().cover_image_data_url.as_deref(),Some(cover));assert!(repo.save_project_cover(None).unwrap().cover_image_data_url.is_none());assert!(repo.save_project_cover(Some("data:text/plain;base64,aGVsbG8=")).is_err());}
     #[test]
     fn dashboard_tasks_and_focus_round_trip(){let parent=tempfile::tempdir().unwrap();let repo=ProjectRepository::create(parent.path(),"Dashboard Test").unwrap();let workspace=repo.workspace().unwrap();let project_id=workspace.project.id;let scene_id=workspace.nodes.into_iter().find(|node|node.kind=="scene").unwrap().id;let task=repo.save_dashboard_task(serde_json::json!({"projectId":project_id,"title":"Review opening","status":"open","linkedNodeId":scene_id})).unwrap();assert_eq!(repo.list_dashboard_tasks().unwrap()[0]["title"],"Review opening");repo.save_dashboard_task(serde_json::json!({"id":task["id"],"projectId":project_id,"title":"Review opening","status":"completed","linkedNodeId":scene_id,"createdAt":task["createdAt"]})).unwrap();assert_eq!(repo.list_dashboard_tasks().unwrap()[0]["status"],"completed");repo.save_daily_focus(serde_json::json!({"projectId":project_id,"documentId":scene_id,"title":"Strengthen the signal","note":"Keep the source hidden","wordTarget":900})).unwrap();assert_eq!(repo.load_daily_focus().unwrap().unwrap()["wordTarget"],900);}
     #[test]
@@ -724,10 +750,10 @@ mod tests {
         let scene = repo.workspace().unwrap().nodes.into_iter().find(|node| node.kind == "scene").unwrap();
         let prepared = repo.prepare_editor_run(&scene.id, "Begin your story here…", "Improve prose", "test-provider", "openai-compatible", "Test", "http://127.0.0.1:1/v1", None, "test-model", None, None, None,None).unwrap();
         let run = repo.complete_editor_run(prepared, crate::providers::EditorModelOutput { issue: "Generic opening".into(), rationale: "A concrete image is stronger".into(), replacement: "The bell sounded under black water.".into(), evidence: vec!["Opening line".into()], strategies: vec!["Use an image".into()] }, "Test", "test-model").unwrap();
-        let accepted = repo.accept_editor_proposal(&run.proposal.id,None).unwrap();
+        let accepted = repo.accept_editor_proposal(&run.proposal.id,None,None).unwrap();
         assert!(accepted.content.contains("The bell sounded under black water."));
         assert_eq!(accepted.revision, 1);
-        assert!(repo.accept_editor_proposal(&run.proposal.id,None).is_err());
+        assert!(repo.accept_editor_proposal(&run.proposal.id,None,None).is_err());
         let source: String = repo.connection.query_row("SELECT source FROM document_revisions WHERE document_id=?1 AND revision=1", [&scene.id], |row| row.get(0)).unwrap();
         assert_eq!(source, "ai-accepted");
         let prepared = repo.prepare_editor_run(&scene.id, "black water", "Clarify", "test-provider", "openai-compatible", "Test", "http://127.0.0.1:1/v1", None, "test-model", None, None, None,None).unwrap();
@@ -744,11 +770,15 @@ mod tests {
         let prepared=repo.prepare_editor_run(&scene.id,&original,"Strengthen voice","provider","openai-compatible","Provider","http://localhost:11434/v1",None,"model",None,None,None,None).unwrap();
         let output=crate::providers::EditorModelOutput{replacement:"The black bell sounded.".into(),issue:"Generic verb".into(),rationale:"More specific image".into(),evidence:vec![],strategies:vec![]};
         let run=repo.complete_editor_run(prepared,output,"Provider","model").unwrap();
-        let accepted=repo.accept_editor_proposal(&run.proposal.id,Some("The old bell sounded.")).unwrap();
+        let segments=[ProposalSegmentDecisionDto{segment_id:"change-0".into(),ordinal:0,before_text:"The bell rang.".into(),after_text:"The old bell sounded.".into(),decision:"edited".into()}];
+        let accepted=repo.accept_editor_proposal(&run.proposal.id,Some("The old bell sounded."),Some(&segments)).unwrap();
         assert!(accepted.content.contains("The old bell sounded."));
-        let note:String=repo.connection.query_row("SELECT note FROM proposal_decisions WHERE proposal_id=?1",[run.proposal.id],|row|row.get(0)).unwrap();
+        let note:String=repo.connection.query_row("SELECT note FROM proposal_decisions WHERE proposal_id=?1",[&run.proposal.id],|row|row.get(0)).unwrap();
         assert!(note.contains("partial or edited"));
+        let stored:(String,String)=repo.connection.query_row("SELECT segment_id,decision FROM proposal_segment_decisions WHERE proposal_id=?1",[&run.proposal.id],|row|Ok((row.get(0)?,row.get(1)?))).unwrap();assert_eq!(stored,("change-0".into(),"edited".into()));
     }
+    #[test]
+    fn tracked_ai_proposal_rejects_segment_map_that_does_not_match_reviewed_text(){let parent=tempfile::tempdir().unwrap();let repo=ProjectRepository::create(parent.path(),"Segment Guard").unwrap();let scene=repo.workspace().unwrap().nodes.into_iter().find(|node|node.kind=="scene").unwrap();let prepared=repo.prepare_editor_run(&scene.id,scene.content.as_deref().unwrap(),"Rewrite","provider","openai-compatible","Provider","http://localhost:11434/v1",None,"model",None,None,None,None).unwrap();let run=repo.complete_editor_run(prepared,crate::providers::EditorModelOutput{replacement:"Changed".into(),issue:"Issue".into(),rationale:"Reason".into(),evidence:vec![],strategies:vec![]},"Provider","model").unwrap();let segments=[ProposalSegmentDecisionDto{segment_id:"change-0".into(),ordinal:0,before_text:run.proposal.before.clone(),after_text:"Different text".into(),decision:"accepted".into()}];assert!(repo.accept_editor_proposal(&run.proposal.id,Some("Changed"),Some(&segments)).is_err());}
     #[test]
     fn proposal_lineage_records_regeneration_and_rejects_missing_parent() {
         let parent=tempfile::tempdir().unwrap();let repo=ProjectRepository::create(parent.path(),"Lineage Test").unwrap();let scene=repo.workspace().unwrap().nodes.into_iter().find(|node|node.kind=="scene").unwrap();let selected=scene.content.clone().unwrap();
