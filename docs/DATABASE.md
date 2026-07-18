@@ -1,6 +1,6 @@
 # SQLite schema
 
-The executable schema is applied in order from `src-tauri/migrations/0001_initial.sql` through `0011_scene_metadata.sql`. Migrations use `PRAGMA user_version`, run transactionally, and are never silently downgraded. Project backups provide the verified recovery path before release migrations.
+The executable schema is applied in order from `src-tauri/migrations/0001_initial.sql` through `0014_proposal_lineage.sql`. Migrations are recorded in `schema_migrations`, run transactionally, and are never silently downgraded. Project backups provide the verified recovery path before release migrations.
 
 ## Design conventions
 
@@ -24,5 +24,7 @@ Story knowledge: `bible_entities`, `bible_facts`, `timeline_events`, `timeline_p
 AI/revision: `provider_configs`, `task_routes`, `context_packages`, `context_items`, `ai_runs`, `change_sets`, `change_proposals`, `proposal_decisions`, `ai_review_runs`, and `ai_review_findings`.
 
 Operations: `background_jobs`, `project_settings`, `writing_profiles`, `snapshots`, `schema_migrations`, and FTS virtual tables. Writing-profile saves append immutable numbered versions; the highest version is the active profile.
+
+Command-center operations include explicit `dashboard_tasks`, `daily_focus`, `activity_events`, and `pinned_artifacts` tables. Tasks and daily focus are wired through typed repositories; activity recording and pin-management UI remain follow-up work. Obsidian synchronization uses `obsidian_vault_configs`, `obsidian_record_mappings`, `obsidian_sync_runs`, and `obsidian_sync_conflicts` for machine-local configuration, stable projections, hashes, audit results, and external-edit protection.
 
 Important indexes cover parent/position binder reads, character state by effective position, directional relationships, canon/status filtering, proposal target/status, and job status. Constraints prevent self-relationships, invalid score ranges, reversed state intervals, and duplicate sibling positions.

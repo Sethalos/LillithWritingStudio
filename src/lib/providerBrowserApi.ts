@@ -212,7 +212,7 @@ async function browserChat(
   configuration: ProviderConfiguration,
   model: string,
   system: string,
-  messages: Array<{ role: ChatMessage["role"]; content: string }>,
+  messages: Array<Pick<ChatMessage,"role"|"content"|"attachments">>,
   temperature = 0.15,
   maxOutputTokens = 1200,
   apiKey?: string,
@@ -255,7 +255,12 @@ async function browserChat(
     body = {
       model,
       instructions: system,
-      input: messages.map((message) => `${message.role}: ${message.content}`).join("\n"),
+      input: messages.map((message) => {
+        const documentText=(message.attachments??[]).filter(item=>item.text).map(item=>`\n\n[Attached document: ${item.name}]\n${item.text}`).join("");
+        const images=(message.attachments??[]).filter(item=>item.mimeType.startsWith("image/")&&item.dataUrl);
+        if(message.role==="user"&&images.length){return {role:"user",content:[{type:"input_text",text:message.content+documentText},...images.map(item=>({type:"input_image",image_url:item.dataUrl}))]};}
+        return {role:message.role,content:message.content+documentText};
+      }),
       max_output_tokens: Math.max(1, maxOutputTokens),
     };
   } else {

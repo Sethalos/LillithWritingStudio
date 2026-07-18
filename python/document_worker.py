@@ -305,6 +305,7 @@ def export_pdf(payload,path):
 
 def export_document(payload,path):
     suffix=path.suffix.lower()
+    profile=payload.get("exportProfile") or "standard"
     if suffix==".docx":result=export_docx(payload,path)
     elif suffix in {".md",".markdown"}:export_textual(payload,path,"markdown");result={}
     elif suffix==".txt":export_textual(payload,path,"text");result={}
@@ -312,7 +313,7 @@ def export_document(payload,path):
     elif suffix==".epub":export_epub(payload,path);result={}
     elif suffix==".pdf":export_pdf(payload,path);result={}
     else:raise ValueError(f"Unsupported export format: {suffix}")
-    return {"outputPath":str(path),"chapters":len(payload.get("chapters",[])),"scenes":sum(len(ch.get("scenes",[])) for ch in payload.get("chapters",[])),**result}
+    return {"outputPath":str(path),"chapters":len(payload.get("chapters",[])),"scenes":sum(len(ch.get("scenes",[])) for ch in payload.get("chapters",[])),"profile":profile,**result}
 
 def main():
     parser=argparse.ArgumentParser();parser.add_argument("operation",choices=["inspect","export"]);parser.add_argument("--input");parser.add_argument("--output");args=parser.parse_args()

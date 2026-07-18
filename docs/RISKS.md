@@ -1,4 +1,6 @@
-# Risk register
+# Risk register (compatibility reference)
+
+The maintained risk register is [RISK_REGISTER.md](RISK_REGISTER.md). This original baseline is retained for historical context.
 
 | Risk | Likelihood | Impact | Mitigation / trigger |
 | --- | --- | --- | --- |

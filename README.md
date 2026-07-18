@@ -6,6 +6,8 @@ A private, desktop-first authoring environment built around character psychology
 
 This repository contains the first vertical slice: a Tauri desktop shell, React/TypeScript manuscript workspace, TipTap chapter editor, a workflow home that tracks project brief, Creative North Star, discovery, unresolved decisions, and drafting readiness, character and Voice Lock views, a typed AI context/proposal workflow, a secure Model tab, an explainable publishing checklist and readiness gate, and a Rust SQLite persistence layer. The sample project makes the interaction model visible before an AI key is configured.
 
+The application now uses a professional command-center shell with a separate functional dashboard and Project Workflow. The dashboard derives manuscript progress, active characters, deterministic pacing evidence, unresolved decisions, Story Bible, timeline, research, revision-pipeline, and recent manuscript information from their owning modules; persistent tasks and daily focus use dedicated SQLite records. Conservative one-way Obsidian synchronization exports approved characters and Story Bible records into a master or independent vault while preserving manual notes and reporting external generated-section edits as conflicts. Finer-grained tracked revision review is the next approved milestone. Character Studio and AI Editor remain the heart of the product.
+
 ## Model providers
 
 Open **Models** from the inspector or the processor icon in the top bar. Remote providers accept an API key that the desktop backend writes to the operating-system credential store; keys are never persisted in browser storage or project data. Local connections support Ollama, LM Studio, vLLM, and generic OpenAI-compatible endpoints. The connection tester discovers models from Ollama's `/api/tags` or an OpenAI-compatible `/models` endpoint. Per-task routing can assign different models to editing, rewriting, character analysis, continuity, brainstorming, summarization, indexing, and final polish.
@@ -126,14 +128,23 @@ cargo test --manifest-path src-tauri/Cargo.toml
 
 ## Documentation
 
+- [Product vision](docs/PRODUCT_VISION.md)
 - [Architecture](docs/ARCHITECTURE.md)
+- [Architecture decisions](docs/DECISIONS.md)
+- [Data model](docs/DATA_MODEL.md)
 - [SQLite schema](docs/DATABASE.md)
 - [Project folder format](docs/PROJECT_STRUCTURE.md)
+- [Character system](docs/CHARACTER_SYSTEM.md)
+- [AI Editor](docs/AI_EDITOR.md)
 - [AI and context contracts](docs/AI_CONTRACTS.md)
+- [Retrieval and context](docs/RETRIEVAL_CONTEXT.md)
 - [Author workflow](docs/AUTHOR_WORKFLOW.md)
 - [Tracked-change workflow](docs/TRACKED_CHANGES.md)
+- [Obsidian integration](docs/OBSIDIAN_INTEGRATION.md)
+- [Security and privacy](docs/SECURITY_AND_PRIVACY.md)
+- [Import and export](docs/IMPORT_EXPORT.md)
 - [Vertical slice](docs/VERTICAL_SLICE.md)
-- [Risk register](docs/RISKS.md)
+- [Risk register](docs/RISK_REGISTER.md)
 - [Roadmap](docs/ROADMAP.md)
 
 ## Publishing workflow notes

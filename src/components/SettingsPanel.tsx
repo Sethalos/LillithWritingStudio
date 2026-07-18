@@ -1,30 +1,33 @@
-import { useEffect, useState } from "react";
-import { Archive, Check, DatabaseBackup, Feather, HardDrive, LoaderCircle, RefreshCw, RotateCcw, Save, ShieldCheck } from "lucide-react";
-import type { WritingProfile } from "../domain/models";
-import { createProjectBackup, listProjectBackups, restoreProjectBackupCopy, verifyProjectBackup, type ProjectBackup } from "../lib/settingsRepository";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { Archive, BookImage, Check, DatabaseBackup, Feather, HardDrive, ImagePlus, LoaderCircle, RefreshCw, RotateCcw, Save, ShieldCheck, Trash2 } from "lucide-react";
+import type { Project, WritingProfile } from "../domain/models";
+import { createProjectBackup, listProjectBackups, restoreProjectBackupCopy, saveProjectCover, verifyProjectBackup, type ProjectBackup } from "../lib/settingsRepository";
 import { blankWritingProfile, loadWritingProfile, persistWritingProfile } from "../lib/writingProfileRepository";
 
 const size = (bytes: number) => bytes < 1024 ? `${bytes} B` : bytes < 1048576 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / 1048576).toFixed(1)} MB`;
 const lines = (value: string) => value.split("\n").map(item => item.trim()).filter(Boolean);
 
-export function SettingsPanel({ projectId, projectRoot }: { projectId: string; projectRoot?: string }) {
-  const [tab, setTab] = useState<"voice" | "safety">("voice");
+export function SettingsPanel({ projectId, projectRoot, projectTitle="Untitled project", coverImageDataUrl, onProjectChanged }: { projectId: string; projectRoot?: string;projectTitle?:string;coverImageDataUrl?:string;onProjectChanged?:(project:Project)=>void }) {
+  const [tab, setTab] = useState<"identity"|"voice" | "safety">("voice");
   const [profile, setProfile] = useState<WritingProfile>(() => blankWritingProfile(projectId));
-  const [backups, setBackups] = useState<ProjectBackup[]>([]);
+  const [backups, setBackups] = useState<ProjectBackup[]>([]);const [cover,setCover]=useState(coverImageDataUrl??"");const coverInput=useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(""); const [error, setError] = useState(""); const [notice, setNotice] = useState(""); const [recovered, setRecovered] = useState("");
   useEffect(() => { void loadWritingProfile(projectId).then(setProfile).catch(cause => setError(String(cause))); }, [projectId]);
   useEffect(() => { void listProjectBackups().then(setBackups).catch(cause => setError(String(cause))); }, [projectRoot]);
+  useEffect(()=>setCover(coverImageDataUrl??""),[coverImageDataUrl]);
   const patch = <K extends keyof WritingProfile>(key: K, value: WritingProfile[K]) => setProfile(current => ({ ...current, [key]: value }));
   const saveProfile = async () => { setBusy("profile"); setError(""); setNotice(""); try { const saved = await persistWritingProfile(profile); setProfile(saved); setNotice(`Author Voice version ${saved.version} saved locally and will be included in AI context.`); } catch (cause) { setError(String(cause)); } finally { setBusy(""); } };
   const create = async () => { setBusy("create"); setError(""); try { const backup = await createProjectBackup(); setBackups(all => [backup, ...all.filter(item => item.id !== backup.id)]); } catch (cause) { setError(String(cause)); } finally { setBusy(""); } };
   const verify = async (id: string) => { setBusy(id); setError(""); try { const backup = await verifyProjectBackup(id); setBackups(all => all.map(item => item.id === id ? backup : item)); } catch (cause) { setError(String(cause)); } finally { setBusy(""); } };
   const restore = async (id: string) => { setBusy(`restore-${id}`); setError(""); setRecovered(""); try { const path = await restoreProjectBackupCopy(id); if (path) setRecovered(path); } catch (cause) { setError(String(cause)); } finally { setBusy(""); } };
+  const chooseCover=(event:ChangeEvent<HTMLInputElement>)=>{const file=event.target.files?.[0];event.target.value="";if(!file)return;if(!["image/png","image/jpeg","image/webp"].includes(file.type)){setError("Choose a PNG, JPEG, or WebP cover image.");return}if(file.size>6*1024*1024){setError("Choose a cover image smaller than 6 MB.");return}const reader=new FileReader();reader.onload=()=>{if(typeof reader.result==="string"){setCover(reader.result);setError("");setNotice("Cover selected. Save it to update the dashboard.")}};reader.readAsDataURL(file)};
+  const persistCover=async(next=cover)=>{setBusy("cover");setError("");setNotice("");try{const saved=await saveProjectCover(next||undefined);setCover(saved.coverImageDataUrl??"");onProjectChanged?.(saved);setNotice(next?"Project cover updated locally.":"Project cover removed.")}catch(cause){setError(String(cause))}finally{setBusy("")}};
 
   return <div className="settings-panel">
     <header><DatabaseBackup size={19}/><div><strong>Project Settings</strong><small>Author voice, editing rules, and local safety</small></div></header>
-    <nav className="settings-tabs"><button className={tab === "voice" ? "active" : ""} onClick={() => setTab("voice")}><Feather size={13}/> Author Voice & Rules</button><button className={tab === "safety" ? "active" : ""} onClick={() => setTab("safety")}><ShieldCheck size={13}/> Storage & Backups</button></nav>
+    <nav className="settings-tabs"><button className={tab === "identity" ? "active" : ""} onClick={() => setTab("identity")}><BookImage size={13}/> Project Identity</button><button className={tab === "voice" ? "active" : ""} onClick={() => setTab("voice")}><Feather size={13}/> Author Voice & Rules</button><button className={tab === "safety" ? "active" : ""} onClick={() => setTab("safety")}><ShieldCheck size={13}/> Storage & Backups</button></nav>
     {error && <div className="settings-error" role="alert">{error}</div>}
-    {tab === "voice" ? <div className="writing-profile">
+    {tab === "identity"?<div className="identity-settings"><section className="cover-settings"><button type="button" className="cover-preview" onClick={()=>coverInput.current?.click()} aria-label="Choose project cover">{cover?<img src={cover} alt={`${projectTitle} project cover`}/>:<span><BookImage size={30}/>{projectTitle.slice(0,2).toUpperCase()}</span>}</button><div><span>PROJECT COVER</span><h3>{projectTitle}</h3><p>Use a cover mockup or mood image to make this project recognizable on the command center. PNG, JPEG, or WebP; maximum 6 MB.</p><div><button type="button" onClick={()=>coverInput.current?.click()}><ImagePlus size={13}/> Choose image</button><button type="button" disabled={!cover||busy==="cover"} onClick={()=>{setCover("");void persistCover("")}}><Trash2 size={13}/> Remove cover</button><button className="primary" type="button" disabled={busy==="cover"||cover===(coverImageDataUrl??"")} onClick={()=>void persistCover()}>{busy==="cover"?<LoaderCircle className="spin" size={13}/>:<Save size={13}/>} Save cover</button></div></div><input ref={coverInput} hidden type="file" accept="image/png,image/jpeg,image/webp" aria-label="Project cover image file" onChange={chooseCover}/></section>{notice&&<div className="identity-notice"><Check size={13}/>{notice}</div>}</div>:tab === "voice" ? <div className="writing-profile">
       <section className="profile-intro"><div><span>ACTIVE PROJECT PROFILE</span><strong>Teach Lillith what must sound like you</strong><p>This versioned profile is shown in every AI context package. It guides edits but never authorizes silent manuscript changes.</p></div><em>VERSION {profile.version || "DRAFT"}</em></section>
       <label><span>Authorial voice summary</span><textarea rows={4} value={profile.styleSummary} onChange={event => patch("styleSummary", event.target.value)} placeholder="Describe the qualities that make the prose recognizably yours…"/></label>
       <div className="profile-grid">

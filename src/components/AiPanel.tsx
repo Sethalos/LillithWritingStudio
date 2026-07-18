@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, Clock3, Eye, MessageSquare, RotateCcw, Send, Sparkles, X } from "lucide-react";
-import type { ChangeProposal, ContextPackage, ProposalDecision } from "../domain/ai";
-import type { ReviewProposal } from "../lib/aiEditorRepository";
+import { Check, ChevronDown, Clock3, Eye, FileText, Image as ImageIcon, MessageSquare, Paperclip, RotateCcw, Send, Sparkles, Trash2, X } from "lucide-react";
+import type { ChangeProposal, ChatAttachment, ContextPackage, EditingMode, ProposalDecision } from "../domain/ai";
+import type { ProposalSegmentDecision, ReviewProposal } from "../lib/aiEditorRepository";
 import { configuredExecution, estimateExecutionCost } from "../lib/providerRepository";
 import { runAiChat } from "../lib/aiChatRepository";
 import type { WorkflowState } from "../domain/workflow";
+import { buildChangeHunks, composeTrackedText } from "../lib/trackedChanges";
 
 type PanelMode = "chat" | "review";
 
@@ -13,12 +14,13 @@ interface Props {
   context: ContextPackage;
   proposal?: ReviewProposal | ChangeProposal;
   decision: ProposalDecision;
-  onDecision: (d: ProposalDecision) => void;
+  onDecision: (d: ProposalDecision, replacement?: string, segments?:ProposalSegmentDecision[]) => void;
   modelLabel: string;
-  onRun: (instruction: string) => void;
+  onRun: (instruction: string, mode: EditingMode) => void;
   running: boolean;
   error?: string;
   selectedText?: string;
+  onKeepText?: (text:string) => void;
 }
 
 interface ChatEntry {
@@ -26,6 +28,7 @@ interface ChatEntry {
   role: "user" | "assistant";
   content: string;
   createdAt: string;
+  attachments?: ChatAttachment[];
 }
 
 const chatKey = (projectId: string) => `lillith:ai-chat:v1:${projectId}`;
@@ -55,7 +58,7 @@ function buildSystemPrompt(workflow: WorkflowState, context: ContextPackage, sel
   ].join("\n");
 }
 
-export function AiPanel({ workflow, context, proposal, decision, onDecision, modelLabel, onRun, running, error, selectedText }: Props) {
+export function AiPanel({ workflow, context, proposal, decision, onDecision, modelLabel, onRun, running, error, selectedText, onKeepText }: Props) {
   const [mode, setMode] = useState<PanelMode>("chat");
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -63,13 +66,30 @@ export function AiPanel({ workflow, context, proposal, decision, onDecision, mod
   const [chatEntries, setChatEntries] = useState<ChatEntry[]>([]);
   const [chatLoaded, setChatLoaded] = useState(false);
   const [chatUsage, setChatUsage] = useState<{ inputTokens?: number; outputTokens?: number }>({});
+  const [attachments,setAttachments]=useState<ChatAttachment[]>([]);
   const [openContext, setOpenContext] = useState(false);
+  const [acceptedHunks, setAcceptedHunks] = useState<Set<string>>(new Set());
+  const [editingProposal, setEditingProposal] = useState(false);
+  const [editedProposal, setEditedProposal] = useState("");
+  const [editingMode, setEditingMode] = useState<EditingMode>("tracked-rewrite");
+  const [directApplyConfirmed, setDirectApplyConfirmed] = useState(false);
+  const [regenerationInstruction,setRegenerationInstruction]=useState("");
   const transcriptRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
+  const attachmentRef=useRef<HTMLInputElement>(null);
   const execution = configuredExecution("brainstorm") ?? configuredExecution("primary-editor");
   const selectedPromptCost = estimateExecutionCost("brainstorm", Math.max(1, Math.ceil((selectedText?.length ?? 0) / 4) + 2000));
   const storedKey = chatKey(workflow.projectId);
   const unresolvedDecisionTitles = useMemo(() => workflow.decisions.filter((decisionItem) => decisionItem.status === "open" || decisionItem.status === "deferred").map((decisionItem) => decisionItem.title), [workflow.decisions]);
+  const changeHunks = useMemo(() => proposal ? buildChangeHunks(proposal.before, proposal.after) : [], [proposal]);
+  const changedHunks = useMemo(() => changeHunks.filter((hunk) => hunk.changed), [changeHunks]);
+
+  useEffect(() => {
+    setAcceptedHunks(new Set(changedHunks.map((hunk) => hunk.id)));
+    setEditedProposal(proposal?.after ?? "");
+    setEditingProposal(false);
+    if(proposal&&"editingMode" in proposal)setEditingMode(proposal.editingMode);
+  }, [proposal?.id, changedHunks.length]);
 
   useEffect(() => {
     try {
@@ -104,7 +124,8 @@ export function AiPanel({ workflow, context, proposal, decision, onDecision, mod
 
   useEffect(() => {
     if (!chatLoaded) return;
-    localStorage.setItem(storedKey, JSON.stringify(chatEntries));
+    const persistent=chatEntries.map(entry=>({...entry,attachments:entry.attachments?.map(({dataUrl:_,text:__,...attachment})=>attachment)}));
+    localStorage.setItem(storedKey, JSON.stringify(persistent));
   }, [chatEntries, chatLoaded, storedKey]);
 
   useEffect(() => {
@@ -122,23 +143,24 @@ export function AiPanel({ workflow, context, proposal, decision, onDecision, mod
 
   const sendChat = async (messageText: string) => {
     const text = messageText.trim();
-    if (!text || sending) return;
+    if ((!text&&!attachments.length) || sending) return;
     if (!execution) {
       setChatError("Configure a Brainstorming or Primary editor model in Models first.");
       return;
     }
     setSending(true);
     setChatError("");
-    const userMessage: ChatEntry = { id: crypto.randomUUID(), role: "user", content: text, createdAt: new Date().toISOString() };
+    const userMessage: ChatEntry = { id: crypto.randomUUID(), role: "user", content: text||"Please review the attached material.", createdAt: new Date().toISOString(), attachments };
     const conversation = [...chatEntries, userMessage];
     setChatEntries((all) => [...all, userMessage]);
     setDraft("");
+    setAttachments([]);
     try {
       const response = await runAiChat({
         provider: execution.provider,
         model: execution.model,
         system: buildSystemPrompt(workflow, context, selectedText),
-        messages: conversation.map((entry) => ({ role: entry.role, content: entry.content })),
+        messages: conversation.map((entry) => ({ role: entry.role, content: entry.content, createdAt:entry.createdAt, attachments:entry.attachments })),
         temperature: 0.55,
         maxOutputTokens: 1200,
       });
@@ -187,6 +209,38 @@ export function AiPanel({ workflow, context, proposal, decision, onDecision, mod
         ? `${selectedPromptCost.minimum.toFixed(4)}–${selectedPromptCost.maximum.toFixed(4)} estimated`
         : "Pricing not configured"
     : "No cost estimate";
+
+  const attachFiles=async(files:FileList|null)=>{
+    if(!files)return;
+    setChatError("");
+    const next:ChatAttachment[]=[];
+    for(const file of Array.from(files)){
+      if(file.size>10*1024*1024){setChatError(`${file.name} is larger than the 10 MB chat attachment limit.`);continue;}
+      if(file.type.startsWith("image/")){
+        const dataUrl=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result??""));reader.onerror=()=>reject(new Error(`Could not read ${file.name}.`));reader.readAsDataURL(file)});
+        next.push({name:file.name,mimeType:file.type,dataUrl,size:file.size});
+      }else if(file.type.startsWith("text/")||/\.(md|txt|csv|json|html?)$/i.test(file.name)){
+        next.push({name:file.name,mimeType:file.type||"text/plain",text:await file.text(),size:file.size});
+      }else{
+        setChatError("This first attachment pass supports images and readable text, Markdown, CSV, JSON, and HTML documents. PDF and DOCX extraction comes next.");
+      }
+    }
+    setAttachments(current=>[...current,...next]);
+    if(attachmentRef.current)attachmentRef.current.value="";
+  };
+
+  if(onKeepText){return <div className="lillith-chat-simple">
+    <header className="lillith-chat-header"><div className="lillith-avatar">L</div><div><strong>Lillith</strong><small>{execution?`${execution.provider.label} · ${execution.model}`:"Configure a model to begin"}</small></div></header>
+    <div className="chat-transcript" ref={transcriptRef}>
+      {chatEntries.map(entry=><article key={entry.id} className={`chat-message ${entry.role}`}><span>{entry.role==="user"?"You":"Lillith"}</span><p>{entry.content}</p>{entry.attachments?.length?<div className="message-attachments">{entry.attachments.map(item=><span key={`${entry.id}-${item.name}`}>{item.mimeType.startsWith("image/")?<ImageIcon size={12}/>:<FileText size={12}/>} {item.name}</span>)}</div>:null}{entry.role==="assistant"&&<button className="keep-chat-text" onClick={()=>onKeepText(entry.content)}><Check size={13}/> Keep in manuscript</button>}</article>)}
+      {sending&&<div className="lillith-typing"><i/><i/><i/><span>Lillith is thinking…</span></div>}
+    </div>
+    {selectedText?.trim()&&<button className="simple-selection" onClick={insertSelection}>Add selected manuscript text to this message</button>}
+    {attachments.length>0&&<div className="pending-attachments">{attachments.map((item,index)=><div key={`${item.name}-${index}`}>{item.mimeType.startsWith("image/")&&item.dataUrl?<img src={item.dataUrl} alt=""/>:item.mimeType.startsWith("image/")?<ImageIcon size={18}/>:<FileText size={18}/>}<span><strong>{item.name}</strong><small>{Math.max(1,Math.round(item.size/1024))} KB</small></span><button aria-label={`Remove ${item.name}`} onClick={()=>setAttachments(all=>all.filter((_,itemIndex)=>itemIndex!==index))}><Trash2 size={13}/></button></div>)}</div>}
+    <div className="simple-chat-composer"><button className="attach-button" aria-label="Attach files" title="Attach images or documents" onClick={()=>attachmentRef.current?.click()}><Paperclip size={19}/></button><input ref={attachmentRef} hidden multiple type="file" accept="image/*,.txt,.md,.csv,.json,.html,.htm,text/*" onChange={event=>void attachFiles(event.target.files)}/><textarea ref={composerRef} value={draft} onChange={event=>setDraft(event.target.value)} placeholder="Message Lillith…" onKeyDown={event=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();void sendChat(draft)}}}/><button className="simple-send" aria-label="Send message" onClick={()=>void sendChat(draft)} disabled={sending||(!draft.trim()&&!attachments.length)}><Send size={18}/></button></div>
+    {chatError&&<div className="simple-chat-error" role="alert">{chatError}</div>}
+    <footer>Enter to send · Shift+Enter for a new line · Images require a vision-capable model</footer>
+  </div>}
 
   return (
     <div className="ai-panel">
@@ -286,6 +340,11 @@ export function AiPanel({ workflow, context, proposal, decision, onDecision, mod
         <>
           <div className="ai-run-box">
             <span className="eyebrow">SELECTION ACTION</span>
+            <div className="editing-mode-picker" role="group" aria-label="Editing mode">
+              {([ ["suggest-only","Suggest Only"], ["tracked-rewrite","Tracked Rewrite"], ["direct-apply","Direct Apply"] ] as const).map(([value,label])=><button key={value} className={editingMode===value?"active":""} onClick={()=>{setEditingMode(value);setDirectApplyConfirmed(false)}}>{label}</button>)}
+            </div>
+            <small>{editingMode==="suggest-only"?"Findings and repair strategies only; manuscript text cannot be applied.":editingMode==="tracked-rewrite"?"Review every proposed change before it reaches the manuscript.":"Applies the generated replacement immediately after a snapshot and safety checks."}</small>
+            {editingMode==="direct-apply"&&<label className="direct-apply-confirm"><input type="checkbox" checked={directApplyConfirmed} onChange={event=>setDirectApplyConfirmed(event.target.checked)}/> I understand this skips proposal review for this operation.</label>}
             <select id="editor-action" defaultValue="Strengthen character voice">
               <option>Strengthen character voice</option>
               <option>Improve dialogue</option>
@@ -298,7 +357,7 @@ export function AiPanel({ workflow, context, proposal, decision, onDecision, mod
               <option>Clarify</option>
               <option>Continue scene</option>
             </select>
-            <button disabled={running || !selectedText} onClick={() => onRun((document.getElementById("editor-action") as HTMLSelectElement).value)}>
+            <button disabled={running || !selectedText || (editingMode==="direct-apply"&&!directApplyConfirmed)} onClick={() => onRun((document.getElementById("editor-action") as HTMLSelectElement).value,editingMode)}>
               {running ? <><RotateCcw className="spin" size={14} /> Working…</> : <><Sparkles size={14} /> Generate reviewed change</>}
             </button>
             {!selectedText && <small>Select text in the manuscript, then switch to review or use the chat tab.</small>}
@@ -333,17 +392,33 @@ export function AiPanel({ workflow, context, proposal, decision, onDecision, mod
                   </div>
                 ))}
               </div>
-              <div className="comparison">
+              {editingMode!=="suggest-only"&&<div className="comparison">
                 <span className="eyebrow">DRAFTED CORRECTION</span>
                 <div className="before"><small>ORIGINAL</small><p>“{proposal.before}”</p></div>
-                <div className="after"><small>PROPOSED</small><p>“{proposal.after}”</p></div>
-              </div>
-              {decision === "pending" ? (
-                <div className="decision-bar">
-                  <button className="accept" onClick={() => onDecision("accepted")}><Check size={16} /> Accept</button>
+                <div className="after">
+                  <small>PROPOSED · {changedHunks.length} REVIEWABLE {changedHunks.length === 1 ? "CHANGE" : "CHANGES"}</small>
+                  {editingProposal ? (
+                    <textarea className="proposal-editor" value={editedProposal} onChange={(event) => setEditedProposal(event.target.value)} />
+                  ) : (
+                    <p className="inline-diff">“{changeHunks.map((hunk) => hunk.changed ? (
+                      <button key={hunk.id} className={acceptedHunks.has(hunk.id) ? "change accepted" : "change rejected"} title="Toggle this change" onClick={() => setAcceptedHunks((current) => { const next = new Set(current); if (next.has(hunk.id)) next.delete(hunk.id); else next.add(hunk.id); return next; })}>
+                        {hunk.before && <del>{hunk.before}</del>}{hunk.after && <ins>{hunk.after}</ins>}
+                      </button>
+                    ) : <span key={hunk.id}>{hunk.after}</span>)}”</p>
+                  )}
+                  <div className="segment-tools">
+                    <button onClick={() => setAcceptedHunks(new Set(changedHunks.map((hunk) => hunk.id)))}>Accept all segments</button>
+                    <button onClick={() => setAcceptedHunks(new Set())}>Reject all segments</button>
+                    <button onClick={() => { setEditedProposal(composeTrackedText(changeHunks, acceptedHunks)); setEditingProposal((value) => !value); }}>{editingProposal ? "Return to segments" : "Edit proposed text"}</button>
+                  </div>
+                </div>
+              </div>}
+              {editingMode==="suggest-only" ? <div className="suggest-only-result"><strong>No manuscript changes drafted.</strong><p>{proposal.strategies.join(" · ")||"Use the finding and evidence above to guide your revision."}</p><button onClick={()=>onDecision("deferred")}><Clock3 size={15}/> Save finding for later</button></div> : decision === "pending" ? (
+                <><div className="regenerate-box"><input value={regenerationInstruction} onChange={event=>setRegenerationInstruction(event.target.value)} placeholder="Additional instructions for another version…"/><button disabled={running||!regenerationInstruction.trim()} onClick={()=>onRun(`[Regenerate parent=${proposal.id}] ${regenerationInstruction.trim()}`,"tracked-rewrite")}><RotateCcw size={14}/> Regenerate</button></div><div className="decision-bar">
+                  <button className="accept" onClick={() => {const replacement=editingProposal?editedProposal:composeTrackedText(changeHunks,acceptedHunks);const segments:ProposalSegmentDecision[]=editingProposal?[{segmentId:"author-edit",ordinal:0,beforeText:proposal.before,afterText:editedProposal,decision:"edited"}]:changeHunks.map((hunk,ordinal)=>({segmentId:hunk.id,ordinal,beforeText:hunk.before,afterText:hunk.after,decision:hunk.changed?(acceptedHunks.has(hunk.id)?"accepted":"rejected"):"unchanged"}));onDecision(editingProposal?"edited":"accepted",replacement,segments)}}><Check size={16} /> Apply reviewed version</button>
                   <button onClick={() => onDecision("rejected")}><X size={16} /> Reject</button>
                   <button onClick={() => onDecision("deferred")}><Clock3 size={16} /> Defer</button>
-                </div>
+                </div></>
               ) : (
                 <div className="decision-result"><span>Proposal {decision}.</span></div>
               )}
