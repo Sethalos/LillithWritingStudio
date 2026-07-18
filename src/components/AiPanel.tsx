@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, Clock3, Eye, MessageSquare, RotateCcw, Send, Sparkles, X } from "lucide-react";
-import type { ChangeProposal, ContextPackage, EditingMode, ProposalDecision } from "../domain/ai";
+import { Check, ChevronDown, Clock3, Eye, FileText, Image as ImageIcon, MessageSquare, Paperclip, RotateCcw, Send, Sparkles, Trash2, X } from "lucide-react";
+import type { ChangeProposal, ChatAttachment, ContextPackage, EditingMode, ProposalDecision } from "../domain/ai";
 import type { ProposalSegmentDecision, ReviewProposal } from "../lib/aiEditorRepository";
 import { configuredExecution, estimateExecutionCost } from "../lib/providerRepository";
 import { runAiChat } from "../lib/aiChatRepository";
@@ -20,6 +20,7 @@ interface Props {
   running: boolean;
   error?: string;
   selectedText?: string;
+  onKeepText?: (text:string) => void;
 }
 
 interface ChatEntry {
@@ -27,6 +28,7 @@ interface ChatEntry {
   role: "user" | "assistant";
   content: string;
   createdAt: string;
+  attachments?: ChatAttachment[];
 }
 
 const chatKey = (projectId: string) => `lillith:ai-chat:v1:${projectId}`;
@@ -56,7 +58,7 @@ function buildSystemPrompt(workflow: WorkflowState, context: ContextPackage, sel
   ].join("\n");
 }
 
-export function AiPanel({ workflow, context, proposal, decision, onDecision, modelLabel, onRun, running, error, selectedText }: Props) {
+export function AiPanel({ workflow, context, proposal, decision, onDecision, modelLabel, onRun, running, error, selectedText, onKeepText }: Props) {
   const [mode, setMode] = useState<PanelMode>("chat");
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -64,6 +66,7 @@ export function AiPanel({ workflow, context, proposal, decision, onDecision, mod
   const [chatEntries, setChatEntries] = useState<ChatEntry[]>([]);
   const [chatLoaded, setChatLoaded] = useState(false);
   const [chatUsage, setChatUsage] = useState<{ inputTokens?: number; outputTokens?: number }>({});
+  const [attachments,setAttachments]=useState<ChatAttachment[]>([]);
   const [openContext, setOpenContext] = useState(false);
   const [acceptedHunks, setAcceptedHunks] = useState<Set<string>>(new Set());
   const [editingProposal, setEditingProposal] = useState(false);
@@ -73,6 +76,7 @@ export function AiPanel({ workflow, context, proposal, decision, onDecision, mod
   const [regenerationInstruction,setRegenerationInstruction]=useState("");
   const transcriptRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
+  const attachmentRef=useRef<HTMLInputElement>(null);
   const execution = configuredExecution("brainstorm") ?? configuredExecution("primary-editor");
   const selectedPromptCost = estimateExecutionCost("brainstorm", Math.max(1, Math.ceil((selectedText?.length ?? 0) / 4) + 2000));
   const storedKey = chatKey(workflow.projectId);
@@ -120,7 +124,8 @@ export function AiPanel({ workflow, context, proposal, decision, onDecision, mod
 
   useEffect(() => {
     if (!chatLoaded) return;
-    localStorage.setItem(storedKey, JSON.stringify(chatEntries));
+    const persistent=chatEntries.map(entry=>({...entry,attachments:entry.attachments?.map(({dataUrl:_,text:__,...attachment})=>attachment)}));
+    localStorage.setItem(storedKey, JSON.stringify(persistent));
   }, [chatEntries, chatLoaded, storedKey]);
 
   useEffect(() => {
@@ -138,23 +143,24 @@ export function AiPanel({ workflow, context, proposal, decision, onDecision, mod
 
   const sendChat = async (messageText: string) => {
     const text = messageText.trim();
-    if (!text || sending) return;
+    if ((!text&&!attachments.length) || sending) return;
     if (!execution) {
       setChatError("Configure a Brainstorming or Primary editor model in Models first.");
       return;
     }
     setSending(true);
     setChatError("");
-    const userMessage: ChatEntry = { id: crypto.randomUUID(), role: "user", content: text, createdAt: new Date().toISOString() };
+    const userMessage: ChatEntry = { id: crypto.randomUUID(), role: "user", content: text||"Please review the attached material.", createdAt: new Date().toISOString(), attachments };
     const conversation = [...chatEntries, userMessage];
     setChatEntries((all) => [...all, userMessage]);
     setDraft("");
+    setAttachments([]);
     try {
       const response = await runAiChat({
         provider: execution.provider,
         model: execution.model,
         system: buildSystemPrompt(workflow, context, selectedText),
-        messages: conversation.map((entry) => ({ role: entry.role, content: entry.content })),
+        messages: conversation.map((entry) => ({ role: entry.role, content: entry.content, createdAt:entry.createdAt, attachments:entry.attachments })),
         temperature: 0.55,
         maxOutputTokens: 1200,
       });
@@ -203,6 +209,38 @@ export function AiPanel({ workflow, context, proposal, decision, onDecision, mod
         ? `${selectedPromptCost.minimum.toFixed(4)}–${selectedPromptCost.maximum.toFixed(4)} estimated`
         : "Pricing not configured"
     : "No cost estimate";
+
+  const attachFiles=async(files:FileList|null)=>{
+    if(!files)return;
+    setChatError("");
+    const next:ChatAttachment[]=[];
+    for(const file of Array.from(files)){
+      if(file.size>10*1024*1024){setChatError(`${file.name} is larger than the 10 MB chat attachment limit.`);continue;}
+      if(file.type.startsWith("image/")){
+        const dataUrl=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result??""));reader.onerror=()=>reject(new Error(`Could not read ${file.name}.`));reader.readAsDataURL(file)});
+        next.push({name:file.name,mimeType:file.type,dataUrl,size:file.size});
+      }else if(file.type.startsWith("text/")||/\.(md|txt|csv|json|html?)$/i.test(file.name)){
+        next.push({name:file.name,mimeType:file.type||"text/plain",text:await file.text(),size:file.size});
+      }else{
+        setChatError("This first attachment pass supports images and readable text, Markdown, CSV, JSON, and HTML documents. PDF and DOCX extraction comes next.");
+      }
+    }
+    setAttachments(current=>[...current,...next]);
+    if(attachmentRef.current)attachmentRef.current.value="";
+  };
+
+  if(onKeepText){return <div className="lillith-chat-simple">
+    <header className="lillith-chat-header"><div className="lillith-avatar">L</div><div><strong>Lillith</strong><small>{execution?`${execution.provider.label} · ${execution.model}`:"Configure a model to begin"}</small></div></header>
+    <div className="chat-transcript" ref={transcriptRef}>
+      {chatEntries.map(entry=><article key={entry.id} className={`chat-message ${entry.role}`}><span>{entry.role==="user"?"You":"Lillith"}</span><p>{entry.content}</p>{entry.attachments?.length?<div className="message-attachments">{entry.attachments.map(item=><span key={`${entry.id}-${item.name}`}>{item.mimeType.startsWith("image/")?<ImageIcon size={12}/>:<FileText size={12}/>} {item.name}</span>)}</div>:null}{entry.role==="assistant"&&<button className="keep-chat-text" onClick={()=>onKeepText(entry.content)}><Check size={13}/> Keep in manuscript</button>}</article>)}
+      {sending&&<div className="lillith-typing"><i/><i/><i/><span>Lillith is thinking…</span></div>}
+    </div>
+    {selectedText?.trim()&&<button className="simple-selection" onClick={insertSelection}>Add selected manuscript text to this message</button>}
+    {attachments.length>0&&<div className="pending-attachments">{attachments.map((item,index)=><div key={`${item.name}-${index}`}>{item.mimeType.startsWith("image/")&&item.dataUrl?<img src={item.dataUrl} alt=""/>:item.mimeType.startsWith("image/")?<ImageIcon size={18}/>:<FileText size={18}/>}<span><strong>{item.name}</strong><small>{Math.max(1,Math.round(item.size/1024))} KB</small></span><button aria-label={`Remove ${item.name}`} onClick={()=>setAttachments(all=>all.filter((_,itemIndex)=>itemIndex!==index))}><Trash2 size={13}/></button></div>)}</div>}
+    <div className="simple-chat-composer"><button className="attach-button" aria-label="Attach files" title="Attach images or documents" onClick={()=>attachmentRef.current?.click()}><Paperclip size={19}/></button><input ref={attachmentRef} hidden multiple type="file" accept="image/*,.txt,.md,.csv,.json,.html,.htm,text/*" onChange={event=>void attachFiles(event.target.files)}/><textarea ref={composerRef} value={draft} onChange={event=>setDraft(event.target.value)} placeholder="Message Lillith…" onKeyDown={event=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();void sendChat(draft)}}}/><button className="simple-send" aria-label="Send message" onClick={()=>void sendChat(draft)} disabled={sending||(!draft.trim()&&!attachments.length)}><Send size={18}/></button></div>
+    {chatError&&<div className="simple-chat-error" role="alert">{chatError}</div>}
+    <footer>Enter to send · Shift+Enter for a new line · Images require a vision-capable model</footer>
+  </div>}
 
   return (
     <div className="ai-panel">

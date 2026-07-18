@@ -9,7 +9,7 @@ export async function runAiChat(input: {
   provider: ProviderConfiguration;
   model: string;
   system: string;
-  messages: Array<{ role: ChatMessage["role"]; content: string }>;
+  messages: ChatMessage[];
   temperature?: number;
   maxOutputTokens?: number;
 }): Promise<ChatResponse> {

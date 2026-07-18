@@ -1,8 +1,16 @@
 # Current project status
 
-Last updated: 2026-07-16
+Last updated: 2026-07-18
 
 ## Current checkpoint
+
+The visible product is being simplified around the author’s actual loop: **Dashboard → Project Workflow → Manuscript + Lillith**. The primary navigation now exposes those three destinations. Project Workflow is a seven-stage visual path—Idea, Story Development, Manuscript, Revisions, Production, Publishing, and Marketing—rather than the former sixteen-phase form carousel. The active stage is derived from project evidence and displayed in orange; each stage opens its owning workspace.
+
+The Manuscript workspace remains the canonical story surface above a larger persistent project-wide Lillith conversation. Assistant responses can be explicitly kept in the manuscript; ordinary brainstorming stays conversational until the author chooses to keep it. The unrelated right-hand context rail has been removed. Story Bible navigation now precedes Writing in the sidebar because characters, world knowledge, timeline, and relationships are supporting project memory rather than the author’s main data-entry path.
+
+The embedded Manuscript conversation is now a single conventional chat surface rather than a secondary AI control panel. Review tabs, routing/cost banners, context toggles, reset controls, and canned prompt buttons are absent from this workspace. The composer accepts multiple images and readable text/Markdown/CSV/JSON/HTML documents up to 10 MB each. OpenAI Responses requests send images as vision input and include readable document contents; non-vision text providers still receive readable document text. PDF and DOCX chat extraction remain a follow-up because those formats require the isolated document worker rather than browser text decoding.
+
+The intended next architecture is for accepted collaboration decisions to update structured project memory immediately and record a quiet activity note, while rejected or exploratory brainstorming never enters canon. Image generation is an approved later capability for character portraits, maps, chapter art, and cover production, with project-wide visual identity and explicit generation requests.
 
 The command-center foundation and safe AI-review foundation are complete. Granular tracked-review decisions now persist as queryable audit records and appear in Revision History. The application remains in hands-on usability testing of the first authoring slice using a newly created project and a short four-character dungeon story.
 

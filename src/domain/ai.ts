@@ -48,10 +48,18 @@ export interface GenerationRequest { model: string; system: string; messages: Ar
 export interface GenerationChunk { text?: string; usage?: { inputTokens: number; outputTokens: number }; finishReason?: string }
 
 export type ChatRole = "user" | "assistant";
+export interface ChatAttachment {
+  name: string;
+  mimeType: string;
+  dataUrl?: string;
+  text?: string;
+  size: number;
+}
 export interface ChatMessage {
   role: ChatRole;
   content: string;
   createdAt: string;
+  attachments?: ChatAttachment[];
 }
 export interface ChatResponse {
   text: string;

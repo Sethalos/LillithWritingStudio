@@ -47,15 +47,6 @@ const groups: NavGroup[] = [
     ],
   },
   {
-    label: "Writing",
-    items: [
-      { id: "manuscript", label: "Manuscript", icon: <FileOutput size={15} /> },
-      { id: "comments", label: "Comments & Notes", icon: <MessageSquare size={15} /> },
-      { id: "research", label: "Research", icon: <FileSearch size={15} /> },
-      { id: "history", label: "Revision History", icon: <HistoryIcon size={15} /> },
-    ],
-  },
-  {
     label: "Story Bible",
     items: [
       { id: "character", label: "Characters", icon: <UserRound size={15} /> },
@@ -65,9 +56,17 @@ const groups: NavGroup[] = [
     ],
   },
   {
+    label: "Writing",
+    items: [
+      { id: "manuscript", label: "Manuscript", icon: <FileOutput size={15} /> },
+      { id: "comments", label: "Comments & Notes", icon: <MessageSquare size={15} /> },
+      { id: "research", label: "Research", icon: <FileSearch size={15} /> },
+      { id: "history", label: "Revision History", icon: <HistoryIcon size={15} /> },
+    ],
+  },
+  {
     label: "Tools",
     items: [
-      { id: "ai", label: "AI Editor", icon: <Sparkles size={15} /> },
       { id: "pipelines", label: "Revision Pipelines", icon: <Layers3 size={15} /> },
       { id: "analysis", label: "Analysis", icon: <Activity size={15} /> },
       { id: "files", label: "Import & Export", icon: <BookCopy size={15} /> },

@@ -24,7 +24,7 @@ describe("binder accessibility", () => {
     expect(screen.getByRole("button", { name: "Manuscript" })).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Project Workflow" }));
     expect(onNavigateWorkspace).toHaveBeenCalledWith("workflow");
-    fireEvent.click(screen.getByRole("button", { name: "AI Editor" }));
-    expect(onNavigateWorkspace).toHaveBeenCalledWith("ai");
+    fireEvent.click(screen.getByRole("button", { name: "Manuscript" }));
+    expect(onNavigateWorkspace).toHaveBeenCalledWith("manuscript");
   });
 });

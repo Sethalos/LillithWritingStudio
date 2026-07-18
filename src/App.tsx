@@ -4,7 +4,6 @@ import { Binder } from "./components/Binder";
 import { EditorPane } from "./components/EditorPane";
 import { AiPanel } from "./components/AiPanel";
 import { WorkflowDashboard } from "./components/WorkflowDashboard";
-import { ContextRail } from "./components/ContextRail";
 import type { CommentSelection } from "./components/CommentsPanel";
 import { LazyBoundary } from "./components/LazyBoundary";
 import type { EditingMode, ProposalDecision } from "./domain/ai";
@@ -20,6 +19,7 @@ import { retrieveBibleContext } from "./lib/storyBibleRepository";
 import {retrieveSemanticContext} from "./lib/semanticRepository";
 import {retrieveResearchContext} from "./lib/researchRepository";
 import { loadWorkflowState, persistWorkflowState } from "./lib/workflowRepository";
+import { extractManuscriptMemory, loadMemoryActivities, type MemoryActivity } from "./lib/manuscriptMemoryRepository";
 import "./loading.css";
 
 const CharacterPanel=lazy(()=>import("./components/CharacterPanel").then(module=>({default:module.CharacterPanel})));
@@ -43,13 +43,8 @@ type Inspector = "dashboard" | "workflow" | "manuscript" | "character" | "ai" | 
 
 const primaryNavigation: Array<{ id: Inspector; label: string }> = [
   { id: "dashboard", label: "Dashboard" },
+  { id: "workflow", label: "Project Workflow" },
   { id: "manuscript", label: "Manuscript" },
-  { id: "character", label: "Characters" },
-  { id: "bible", label: "World" },
-  { id: "visuals", label: "Timeline" },
-  { id: "ai", label: "AI Editor" },
-  { id: "analysis", label: "Analytics" },
-  { id: "publishing", label: "Publishing" },
 ];
 
 export function App() {
@@ -66,6 +61,7 @@ export function App() {
   const [editorModel, setEditorModel] = useState("No editor model configured");
   const [showLauncher, setShowLauncher] = useState(false);
   const [characters, setCharacters] = useState<Character[]>([]);
+  const [memoryActivities,setMemoryActivities]=useState<MemoryActivity[]>(()=>loadMemoryActivities(initialWorkspace.project.id));
   const [workflow, setWorkflow] = useState<WorkflowState>(() => createBlankWorkflowState(initialWorkspace.project));
   const [selectedCharacterId, setSelectedCharacterId] = useState("");
   const [selectedText, setSelectedText] = useState("");
@@ -79,6 +75,7 @@ export function App() {
   const lastSaved = useRef(content);
   useEffect(() => { const next = loadLocalDocument(active); setContent(next); lastSaved.current = next; }, [active.id]);
   useEffect(() => { if (content === lastSaved.current) return; const timer = window.setTimeout(async () => { setSaveState("Saving…"); try { const revision = await saveDocument(active, content); lastSaved.current = content; setNodes((all) => all.map((node) => node.id === active.id ? { ...node, content, revision } : node)); setSaveState("Saved locally"); } catch (error) { setSaveState(String(error).includes("stale edit") ? "Save conflict — reopen section" : "Save needs attention"); } }, 700); return () => window.clearTimeout(timer); }, [active, content]);
+  useEffect(()=>{const plain=content.replace(/<[^>]+>/g," ").trim();const execution=configuredExecution("indexing")??configuredExecution("character-analysis")??configuredExecution("primary-editor");if(!execution||plain.length<40||content!==lastSaved.current)return;const memoryKey=`lillith:memory-source:v1:${project.id}:${active.id}`;if(localStorage.getItem(memoryKey)===content)return;const timer=window.setTimeout(()=>{setSaveState("Saved · Lillith is updating memory…");void extractManuscriptMemory({projectId:project.id,document:active,content,provider:execution.provider,model:execution.model}).then(result=>{localStorage.setItem(memoryKey,content);setCharacters(result.characters);setMemoryActivities(loadMemoryActivities(project.id));setSaveState(result.activity.details.length?`Saved · memory updated (${result.activity.details.length})`:"Saved · memory checked")}).catch(error=>{setSaveState("Saved locally");setAiError(`Project memory: ${String(error)}`)})},2500);return()=>window.clearTimeout(timer)},[active,content,project.id]);
   useEffect(() => { saveCurrentWorkspace({ project, nodes }); }, [project, nodes]);
   useEffect(() => {
     let cancelled = false;
@@ -89,7 +86,7 @@ export function App() {
       cancelled = true;
     };
   }, [project, nodes, characters]);
-  const useWorkspace = async (workspace: WorkspaceData) => { setProject(workspace.project); setNodes(workspace.nodes); saveCurrentWorkspace(workspace); const firstScene = workspace.nodes.find((node) => node.kind === "scene"); if (firstScene) setActiveId(firstScene.id); const loaded = await loadCharacters(workspace.project.id); setCharacters(loaded); setSelectedCharacterId(loaded[0]?.id ?? ""); setActiveProposal(undefined); setSelectedText(""); setActiveContext({version:"1",id:crypto.randomUUID(),projectId:workspace.project.id,task:"prose-rewrite",target:{documentId:firstScene?.id??""},items:[],exclusions:[],estimatedInputTokens:0,tokenBudget:12000,assembledAt:new Date().toISOString(),assemblerVersion:"1.0.0"}); setEditorModel("No editor model configured"); setSaveState(`Opened ${workspace.project.title || "current project"}`); setInspector("dashboard"); setShowLauncher(false); };
+  const useWorkspace = async (workspace: WorkspaceData) => { setProject(workspace.project); setNodes(workspace.nodes); saveCurrentWorkspace(workspace); setMemoryActivities(loadMemoryActivities(workspace.project.id)); const firstScene = workspace.nodes.find((node) => node.kind === "scene"); if (firstScene) setActiveId(firstScene.id); const loaded = await loadCharacters(workspace.project.id); setCharacters(loaded); setSelectedCharacterId(loaded[0]?.id ?? ""); setActiveProposal(undefined); setSelectedText(""); setActiveContext({version:"1",id:crypto.randomUUID(),projectId:workspace.project.id,task:"prose-rewrite",target:{documentId:firstScene?.id??""},items:[],exclusions:[],estimatedInputTokens:0,tokenBudget:12000,assembledAt:new Date().toISOString(),assemblerVersion:"1.0.0"}); setEditorModel("No editor model configured"); setSaveState(`Opened ${workspace.project.title || "current project"}`); setInspector("dashboard"); setShowLauncher(false); };
   const createNode = async (kind: "chapter" | "scene", title: string) => { const activeChapter = active.kind === "scene" ? active.parentId : active.kind === "chapter" ? active.id : undefined; const parentId = kind === "chapter" ? nodes.find((node) => node.kind === "book")?.id : activeChapter ?? nodes.find((node) => node.kind === "chapter")?.id; if (!parentId) throw new Error(`Create a ${kind === "scene" ? "chapter" : "book"} first.`); const node = await createManuscriptNode(parentId, kind, title, project.id); setNodes((all) => [...all, node]); if (kind === "scene") setActiveId(node.id); };
   const startComment=async(selection:CommentSelection)=>{try{if(content!==lastSaved.current){setSaveState("Saving…");const revision=await saveDocument(active,content);lastSaved.current=content;setNodes(all=>all.map(node=>node.id===active.id?{...node,content,revision}:node));setSaveState("Saved locally")}setCommentSelection(selection);setInspector("comments")}catch(error){setSaveState("Save needs attention");setAiError(String(error))}};
   const saveWorkflow = async (next: WorkflowState) => {
@@ -125,11 +122,11 @@ export function App() {
   };
   const currentWorkflowPhase = useMemo(() => workflowPhases.find((phase) => phase.id === workflow.currentPhaseId) ?? workflowPhases[0], [workflow.currentPhaseId]);
   const advanceWorkflowPhase = () => {
-    const currentIndex = workflowPhases.findIndex((phase) => phase.id === workflow.currentPhaseId);
-    const nextPhase = workflowPhases[currentIndex + 1];
-    if (!nextPhase) return;
-    void saveWorkflow({ ...workflow, currentPhaseId: nextPhase.id, source: "manual" });
-    setInspector("workflow");
+    const recommendation = workflow.recommendation;
+    if (recommendation.workspaceTarget === "workflow" && recommendation.phaseId !== workflow.currentPhaseId) {
+      void saveWorkflow({ ...workflow, currentPhaseId: recommendation.phaseId, source: "inferred" });
+    }
+    routeWorkspace(recommendation.workspaceTarget);
   };
   const phaseWorkspaceTitle = useMemo(() => {
     if (inspector === "dashboard") return "Dashboard";
@@ -153,6 +150,13 @@ export function App() {
   }, [inspector, currentWorkflowPhase.displayName]);
   const runEditor = async (instruction: string) => { setAiError(""); if (!selectedText.trim()) { setAiError("Select manuscript text before running an editing action."); return; } const execution = configuredExecution("prose-rewrite") ?? configuredExecution("primary-editor"); if (!execution) { setAiError("Configure a provider and prose-rewriting model in the Models tab first."); return; } setAiRunning(true); try { if (content !== lastSaved.current) { const revision = await saveDocument(active, content); lastSaved.current = content; setNodes((all) => all.map((node) => node.id === active.id ? { ...node, content, revision } : node)); } const speakingCharacter = characters.find((item) => item.id === (active.povCharacterId ?? selectedCharacterId)); let characterContext: (typeof speakingCharacter & Record<string, unknown>) | undefined; if (speakingCharacter) { const [allStates, relationships, arcs] = await Promise.all([loadCharacterStates(speakingCharacter.id),loadRelationships(),loadCharacterArcs(speakingCharacter.id)]); const orderedStoryNodes=nodes.filter(node=>node.kind==="chapter").sort((a,b)=>a.position-b.position).flatMap(chapter=>[chapter,...nodes.filter(node=>node.parentId===chapter.id&&node.kind==="scene").sort((a,b)=>a.position-b.position)]); const activeIndex=orderedStoryNodes.findIndex(node=>node.id===active.id); const applicable=allStates.filter(state=>{const from=orderedStoryNodes.findIndex(node=>node.id===state.effectiveFromNodeId);const to=state.effectiveToNodeId?orderedStoryNodes.findIndex(node=>node.id===state.effectiveToNodeId):-1;return from>=0&&from<=activeIndex&&(to<0||activeIndex<=to)}); characterContext={...speakingCharacter,dynamicStates:applicable,relationships:relationships.filter(item=>item.fromCharacterId===speakingCharacter.id||item.toCharacterId===speakingCharacter.id),arcs,workflow:{currentPhaseId:workflow.currentPhaseId,projectStatus:workflow.projectStatus,projectBrief:workflow.projectBrief,creativeNorthStar:workflow.creativeNorthStar,unresolvedDecisionIds:workflow.unresolvedDecisionIds,draftingReadiness:workflow.draftingReadiness}}; } const retrievalQuery=`${selectedText} ${speakingCharacter?.identity.fullName??""}`;const [bible,semanticContext,researchContext]=await Promise.all([retrieveBibleContext(retrievalQuery,8),retrieveSemanticContext(retrievalQuery,active.id,6),retrieveResearchContext(retrievalQuery,active.id,6)]); const result = await executeEditorOperation({ document: active, selectedText, instruction, provider: execution.provider, model: execution.model, character: characterContext, storyBible:bible,semanticContext,researchContext }); setActiveProposal(result.proposal); setDecision("pending"); setEditorModel(`${result.providerLabel} · ${result.model}`); setActiveContext({ version:"1", id:result.proposal.contextPackageId, projectId:project.id, task:"prose-rewrite", target:{ documentId:active.id, selectedText }, items:result.contextItems, exclusions:[], estimatedInputTokens:result.actualInputTokens??result.estimatedInputTokens, tokenBudget:12000, estimatedCost:(()=>{const estimate=estimateExecutionCost("prose-rewrite",result.actualInputTokens??result.estimatedInputTokens,result.actualOutputTokens??1200);return estimate?.priced?{currency:"USD" as const,minimum:estimate.minimum,maximum:estimate.maximum}:undefined})(), assembledAt:new Date().toISOString(), assemblerVersion:"1.0.0" }); } catch (error) { setAiError(String(error)); } finally { setAiRunning(false); } };
   const decideProposal = async (next: ProposalDecision, replacement?: string, segments?:ProposalSegmentDecision[]) => { if (!activeProposal) return; if (next === "accepted" || next === "edited") { try { const accepted = await acceptTrackedProposal(activeProposal, content, replacement,segments); lastSaved.current = accepted.content; setContent(accepted.content); setNodes((all) => all.map((node) => node.id === active.id ? { ...node, content: accepted.content, revision: accepted.revision } : node)); setDecision(next); setSaveState("Reviewed AI change saved with a local snapshot"); } catch (error) { setAiError(String(error)); } } else if (next === "rejected" || next === "deferred") { try { await decideTrackedProposal(activeProposal.id, next); setDecision(next); } catch (error) { setAiError(String(error)); } } };
+  const keepChatText = (text:string) => {
+    const escaped=text.replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+    const addition=escaped.split(/\n{2,}/).map(paragraph=>`<p>${paragraph.replaceAll("\n","<br>")}</p>`).join("");
+    const empty=/^\s*<p>\s*<\/p>\s*$/i.test(content);
+    setContent(empty?addition:`${content}${addition}`);
+    setSaveState("Adding accepted Lillith draft…");
+  };
 
   useEffect(()=>{if(requestedEditingMode!=="direct-apply"||!activeProposal||decision!=="pending")return;void decideProposal("accepted",activeProposal.after).finally(()=>setRequestedEditingMode("tracked-rewrite"));},[activeProposal?.id,requestedEditingMode]);
 
@@ -182,7 +186,7 @@ export function App() {
           ))}
         </nav>
         <div className="topbar-actions">
-          <button className="guided-next" onClick={() => routeWorkspace(workflow.recommendation.workspaceTarget)} title={workflow.recommendation.reason}>
+          <button className="guided-next" onClick={advanceWorkflowPhase} title={workflow.recommendation.reason}>
             <span>Next</span><strong>{workflow.recommendation.title}</strong><ArrowRight size={14}/>
           </button>
           <label className="global-search">
@@ -199,8 +203,8 @@ export function App() {
         <main className="center-pane">
           <LazyBoundary resetKey={inspector}>
             <Suspense fallback={<div className="panel-loading" role="status"><i /><strong>Opening workspace…</strong><small>Loading the current workspace.</small></div>}>
-              {inspector === "dashboard" && <CommandDashboard project={project} nodes={nodes} characters={characters} workflow={workflow} activeDocumentId={active.id} onOpenDocument={setActiveId} onNavigate={(workspace)=>setInspector(workspace as Inspector)}/>}
-              {inspector === "workflow" && <WorkflowDashboard project={project} nodes={nodes} characters={characters} workflow={workflow} onNavigateWorkspace={(workspace) => setInspector(workspace === "workflow" ? "workflow" : workspace as Inspector)} onAdvancePhase={advanceWorkflowPhase} onWorkflowChange={(next) => { void saveWorkflow(next); }} />}
+              {inspector === "dashboard" && <CommandDashboard project={project} nodes={nodes} characters={characters} workflow={workflow} memoryActivities={memoryActivities} activeDocumentId={active.id} onOpenDocument={setActiveId} onNavigate={routeWorkspace} onWorkflowChange={(next)=>{void saveWorkflow(next)}}/>}
+              {inspector === "workflow" && <WorkflowDashboard project={project} nodes={nodes} characters={characters} workflow={workflow} memoryActivities={memoryActivities} onNavigateWorkspace={(workspace) => setInspector(workspace === "workflow" ? "workflow" : workspace as Inspector)} onAdvancePhase={advanceWorkflowPhase} onWorkflowChange={(next) => { void saveWorkflow(next); }} />}
               {inspector === "character" && <CharacterPanel characters={characters} manuscriptNodes={nodes} selectedId={selectedCharacterId} onSelect={setSelectedCharacterId} onNew={() => { const next = blankCharacter(project.id); setCharacters((all) => [...all, next]); setSelectedCharacterId(next.id); }} onSave={async (draft) => { const saved = await persistCharacter(draft); setCharacters((all) => all.map((item) => item.id === draft.id ? saved : item)); setSelectedCharacterId(saved.id); return saved; }} />}
               {inspector === "ai" && <AiPanel workflow={workflow} context={activeContext} proposal={activeProposal} decision={decision} modelLabel={editorModel} selectedText={selectedText} running={aiRunning} error={aiError} onRun={(instruction,mode)=>{setRequestedEditingMode(mode);void runEditor(`[${mode==="suggest-only"?"Suggest Only":mode==="direct-apply"?"Direct Apply":"Tracked Rewrite"}] ${instruction}`)}} onDecision={decideProposal} />}
               {inspector === "bible" && <StoryBiblePanel projectId={project.id} nodes={nodes} active={active}/>} 
@@ -216,20 +220,11 @@ export function App() {
               {inspector === "publishing" && <PublishingPanel projectId={project.id} projectTitle={project.title} nodes={nodes} characters={characters} onNavigateWorkspace={(workspace) => setInspector(workspace as Inspector)} />}
               {inspector === "series" && <SeriesPanel projectId={project.id} projectTitle={project.title}/>} 
               {inspector === "obsidian" && <ObsidianPanel projectId={project.id} projectTitle={project.title}/>}
-              {inspector === "manuscript" && <EditorPane document={active} content={content} characters={characters} onChange={setContent} commentAnchorText={commentAnchorText} onComment={selection=>{void startComment(selection)}} onMetadata={async patch=>{const updated=await updateManuscriptMetadata(active,patch);setNodes(all=>all.map(node=>node.id===updated.id?updated:node))}} embeddedAi={<AiPanel workflow={workflow} context={activeContext} proposal={activeProposal} decision={decision} modelLabel={editorModel} selectedText={selectedText} running={aiRunning} error={aiError} onRun={(instruction,mode)=>{setRequestedEditingMode(mode);void runEditor(`[${mode==="suggest-only"?"Suggest Only":mode==="direct-apply"?"Direct Apply":"Tracked Rewrite"}] ${instruction}`)}} onDecision={decideProposal} />} onAi={(text) => { setSelectedText(text); setAiError(text ? "" : "Select text in the manuscript before running an action."); }} />}
+              {inspector === "manuscript" && <EditorPane document={active} content={content} characters={characters} memoryActivity={memoryActivities.find(item=>item.documentId===active.id)} memoryStatus={saveState} onChange={setContent} commentAnchorText={commentAnchorText} onComment={selection=>{void startComment(selection)}} onMetadata={async patch=>{const updated=await updateManuscriptMetadata(active,patch);setNodes(all=>all.map(node=>node.id===updated.id?updated:node))}} embeddedAi={<AiPanel workflow={workflow} context={activeContext} proposal={activeProposal} decision={decision} modelLabel={editorModel} selectedText={selectedText} running={aiRunning} error={aiError} onRun={(instruction,mode)=>{setRequestedEditingMode(mode);void runEditor(`[${mode==="suggest-only"?"Suggest Only":mode==="direct-apply"?"Direct Apply":"Tracked Rewrite"}] ${instruction}`)}} onDecision={decideProposal} onKeepText={keepChatText}/>} onAi={(text) => { setSelectedText(text); setAiError(text ? "" : "Select text in the manuscript before running an action."); }} />}
             </Suspense>
           </LazyBoundary>
         </main>
 
-        {inspector !== "dashboard" && <ContextRail
-          workflow={workflow}
-          nodes={nodes}
-          onNavigateWorkspace={(workspace) => setInspector(workspace === "workflow" ? "workflow" : workspace as Inspector)}
-          onAddScene={() => setInspector("manuscript")}
-          onAddDiscoveryNote={() => setInspector("workflow")}
-          onAddDecision={() => setInspector("workflow")}
-          onAddResearchNote={() => setInspector("research")}
-        />}
       </div>
 
       <footer className="status-bar">

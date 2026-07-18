@@ -66,7 +66,7 @@ export function ModelPanel({ onEditorModelChange }: { onEditorModelChange?: (lab
   })();
 
   const [providers, setProviders] = useState(restored?.providers?.length ? restored.providers : initialProviders);
-  const [selectedId, setSelectedId] = useState((restored?.providers?.[0]?.id ?? initialProviders[0].id));
+  const [selectedId, setSelectedId] = useState((restored?.routes?.find(route=>route.task==="primary-editor")?.providerId ?? restored?.providers?.[0]?.id ?? initialProviders[0].id));
   const [apiKey, setApiKey] = useState("");
   const [showKey, setShowKey] = useState(false);
   const [models, setModels] = useState<DiscoveredModel[]>(
@@ -181,7 +181,7 @@ export function ModelPanel({ onEditorModelChange }: { onEditorModelChange?: (lab
       });
       setNotice(`Connected successfully. Found ${found.length} model${found.length === 1 ? "" : "s"}.`);
       if (found[0]) {
-        setDefaultModel(found[0].label);
+        setDefaultModel(found[0].id);
       }
     } catch (error) {
       update({ lastConnection: { status: "failure", checkedAt: new Date().toISOString(), message: String(error) } });
@@ -369,7 +369,7 @@ export function ModelPanel({ onEditorModelChange }: { onEditorModelChange?: (lab
               {busy === "test" ? <LoaderCircle className="spin" size={14} /> : <TestTube2 size={14} />} Test selected model
             </button>
             <button className="test-button" onClick={discover} disabled={Boolean(busy)}>
-              {busy === "discover" ? <LoaderCircle className="spin" size={14} /> : <RefreshCw size={14} />} Discover models
+              {busy === "discover" ? <LoaderCircle className="spin" size={14} /> : <RefreshCw size={14} />} Discover {selected.label} models
             </button>
             <button className="save-button" onClick={save} disabled={Boolean(busy)}>
               {busy === "save" ? <LoaderCircle className="spin" size={14} /> : <Save size={14} />} Save provider

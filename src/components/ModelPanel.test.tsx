@@ -50,7 +50,7 @@ describe("models workspace", () => {
 
     expect(modelInput.value).toBe("openrouter/custom-model");
 
-    fireEvent.click(screen.getByRole("button", { name: /Discover models/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Discover OpenRouter models/i }));
 
     await waitFor(() => expect(screen.getByText(/Connected successfully\. Found 1 model/i)).toBeVisible());
     expect(screen.getByRole("button", { name: /qwen\/qwen3\.7-plus Remote/i })).toBeVisible();
