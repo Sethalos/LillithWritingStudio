@@ -1,6 +1,7 @@
 mod repository;
 mod providers;
 mod document_jobs;
+mod vault;
 
 use repository::{AcceptedProposalDto, BackupDto, CharacterDto, EditorRunDto, ManuscriptNodeDto, ProcessedPipelineItemDto, ProjectRepository, ProposalSegmentDecisionDto, RestoredRevisionDto, RevisionHistoryDto, WorkspaceDto};
 use serde::Deserialize;
