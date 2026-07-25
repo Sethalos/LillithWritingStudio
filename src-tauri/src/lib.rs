@@ -100,6 +100,29 @@ fn save_vault_document(state: tauri::State<'_, VaultState>, document_id: String,
 }
 
 #[tauri::command]
+fn commit_vault_import(state: tauri::State<'_, VaultState>, preview: serde_json::Value) -> Result<Vec<repository::ManuscriptNodeDto>, String> {
+    let guard = state.project_root.lock().map_err(|_| "Vault lock poisoned".to_string())?;
+    let root = guard.as_ref().ok_or_else(|| "Open a project before importing".to_string())?;
+    let chapters = preview.get("chapters").and_then(|value| value.as_array()).ok_or_else(|| "The import preview contained no chapters".to_string())?;
+    // One vault chapter file per imported chapter; its scenes are joined with a break.
+    let mut imports: Vec<(String, String)> = Vec::new();
+    for chapter in chapters {
+        let title = chapter.get("title").and_then(|value| value.as_str()).unwrap_or("Untitled Chapter").to_string();
+        let body = chapter.get("scenes").and_then(|value| value.as_array())
+            .map(|scenes| scenes.iter().filter_map(|scene| scene.get("html").and_then(|value| value.as_str())).collect::<Vec<_>>().join("<hr>"))
+            .unwrap_or_default();
+        imports.push((title, if body.trim().is_empty() { "<p></p>".to_string() } else { body }));
+    }
+    let created = vault::append_imported_chapters(root, &imports).map_err(|error| error.to_string())?;
+    if let Err(error) = vault::git_commit(root, "Import manuscript") {
+        eprintln!("vault snapshot after import failed: {error}");
+    }
+    let created_ids: std::collections::HashSet<String> = created.into_iter().map(|meta| meta.id).collect();
+    let workspace = vault_commands::build_workspace(root).map_err(|error| error.to_string())?;
+    Ok(workspace.nodes.into_iter().filter(|node| created_ids.contains(&node.id)).collect())
+}
+
+#[tauri::command]
 fn save_project_cover(state:tauri::State<'_,AppState>,cover_image_data_url:Option<String>)->Result<repository::ProjectDto,String>{let guard=state.repository.lock().map_err(|_|"Repository lock poisoned".to_string())?;guard.as_ref().ok_or_else(||"Open a project before changing its cover".to_string())?.save_project_cover(cover_image_data_url.as_deref()).map_err(|error|error.to_string())}
 
 #[tauri::command]
@@ -297,7 +320,7 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .manage(AppState { repository: Mutex::new(None) })
         .manage(VaultState { project_root: Mutex::new(None) })
-        .invoke_handler(tauri::generate_handler![create_project, open_project, load_workspace, create_vault_project, open_vault_project, load_vault_workspace, save_vault_document, save_project_cover, create_manuscript_node, reorder_manuscript_nodes, update_manuscript_metadata, list_document_comments, create_document_comment, update_document_comment, list_research_sources, save_research_source, delete_research_source, retrieve_research_context, create_project_backup, list_project_backups, verify_project_backup, restore_project_backup_copy, save_document, document_history, restore_document_revision, list_characters, save_character, list_character_states, save_character_state, list_relationships, save_relationship, list_character_arcs, save_character_arc, load_writing_profile, save_writing_profile, load_series_settings, save_series_settings, load_publishing_workflow, save_publishing_workflow, load_workflow_state, save_workflow_state, list_dashboard_tasks, save_dashboard_task, load_daily_focus, save_daily_focus, load_obsidian_config, save_obsidian_config, sync_obsidian, list_obsidian_conflicts, list_series_entries, save_series_entry, delete_series_entry, export_series_pack, import_series_pack, list_timeline_events, save_timeline_event, list_revision_pipelines, save_revision_pipeline, start_pipeline_run, process_pipeline_item, list_bible_entities, save_bible_entity, list_bible_extraction_suggestions, extract_story_bible, decide_bible_extraction, retrieve_bible_context, retrieve_semantic_context, inspect_document, commit_docx_import, export_document, run_editor_operation, run_ai_chat, list_ai_usage, list_ai_reviews, run_ai_review, decide_ai_review_finding, accept_editor_proposal, decide_editor_proposal, providers::save_provider_configuration, providers::discover_provider_models, providers::test_provider_model])
+        .invoke_handler(tauri::generate_handler![create_project, open_project, load_workspace, create_vault_project, open_vault_project, load_vault_workspace, save_vault_document, commit_vault_import, save_project_cover, create_manuscript_node, reorder_manuscript_nodes, update_manuscript_metadata, list_document_comments, create_document_comment, update_document_comment, list_research_sources, save_research_source, delete_research_source, retrieve_research_context, create_project_backup, list_project_backups, verify_project_backup, restore_project_backup_copy, save_document, document_history, restore_document_revision, list_characters, save_character, list_character_states, save_character_state, list_relationships, save_relationship, list_character_arcs, save_character_arc, load_writing_profile, save_writing_profile, load_series_settings, save_series_settings, load_publishing_workflow, save_publishing_workflow, load_workflow_state, save_workflow_state, list_dashboard_tasks, save_dashboard_task, load_daily_focus, save_daily_focus, load_obsidian_config, save_obsidian_config, sync_obsidian, list_obsidian_conflicts, list_series_entries, save_series_entry, delete_series_entry, export_series_pack, import_series_pack, list_timeline_events, save_timeline_event, list_revision_pipelines, save_revision_pipeline, start_pipeline_run, process_pipeline_item, list_bible_entities, save_bible_entity, list_bible_extraction_suggestions, extract_story_bible, decide_bible_extraction, retrieve_bible_context, retrieve_semantic_context, inspect_document, commit_docx_import, export_document, run_editor_operation, run_ai_chat, list_ai_usage, list_ai_reviews, run_ai_review, decide_ai_review_finding, accept_editor_proposal, decide_editor_proposal, providers::save_provider_configuration, providers::discover_provider_models, providers::test_provider_model])
         .run(tauri::generate_context!())
         .expect("failed to run Lillith Writing Studio");
 }

@@ -26,7 +26,7 @@ export async function chooseAndInspectDocument(): Promise<DocumentPreview | null
 }
 
 export const commitDocumentImport = (preview: DocumentPreview): Promise<ManuscriptNode[]> =>
-  invoke("commit_docx_import", { preview });
+  invoke("commit_vault_import", { preview });
 
 export type ExportFormat = "docx" | "kdp-docx" | "md" | "txt" | "html" | "epub" | "pdf";
 

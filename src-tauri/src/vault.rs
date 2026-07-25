@@ -209,6 +209,19 @@ pub fn save_chapter(root: &Path, id: &str, body: &str, expected_revision: i64) -
     Ok(meta.revision)
 }
 
+/// Append imported chapters as new manuscript files positioned after any
+/// existing chapters. Each tuple is (title, html_body). Returns their metadata.
+pub fn append_imported_chapters(root: &Path, chapters: &[(String, String)]) -> Result<Vec<ChapterMeta>, VaultError> {
+    let start = list_chapters(root)?.iter().map(|c| c.position).max().map(|p| p + 1).unwrap_or(0);
+    let mut created = Vec::new();
+    for (offset, (title, body)) in chapters.iter().enumerate() {
+        let meta = new_chapter_meta(title, start + offset as i64);
+        write_chapter_file(root, &meta, body)?;
+        created.push(meta);
+    }
+    Ok(created)
+}
+
 /// True when a `git` executable is on PATH.
 pub fn git_available() -> bool {
     Command::new("git").arg("--version").output().map(|o| o.status.success()).unwrap_or(false)
@@ -324,6 +337,21 @@ mod tests {
             assert!(root.join(file).is_file(), "missing file {file}");
         }
         assert_eq!(list_chapters(&root).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn append_imported_chapters_positions_after_existing() {
+        let parent = tempfile::tempdir().unwrap();
+        let root = create_project(parent.path(), "Import").unwrap();
+        let created = append_imported_chapters(&root, &[
+            ("Chapter Two".to_string(), "<p>Rain.</p>".to_string()),
+            ("Chapter Three".to_string(), "<p>Snow.</p>".to_string()),
+        ]).unwrap();
+        assert_eq!(created.len(), 2);
+        assert_eq!((created[0].position, created[1].position), (1, 2));
+        assert_eq!(list_chapters(&root).unwrap().len(), 3);
+        let (_m, body) = read_chapter(&root, &created[0].id).unwrap();
+        assert_eq!(body, "<p>Rain.</p>");
     }
 
     #[test]
