@@ -14,6 +14,7 @@ pub enum VaultError {
     #[error("chapter {0} does not exist")] MissingChapter(String),
     #[error("project folder already exists: {0}")] AlreadyExists(String),
     #[error("not a project folder: {0}")] NotAProject(String),
+    #[error("chapter file collision: {0}")] ChapterCollision(String),
 }
 
 /// Render a note as `---\n<yaml>---\n\n<body>\n`.
@@ -24,7 +25,8 @@ pub fn render_note<T: Serialize>(meta: &T, body: &str) -> Result<String, VaultEr
 
 /// Parse a note into (frontmatter, body). Tolerates a leading BOM.
 pub fn parse_note<T: DeserializeOwned>(text: &str) -> Result<(T, String), VaultError> {
-    let trimmed = text.strip_prefix('\u{feff}').unwrap_or(text);
+    let normalized = text.replace("\r\n", "\n");
+    let trimmed = normalized.strip_prefix('\u{feff}').unwrap_or(&normalized);
     let rest = trimmed.strip_prefix("---\n").ok_or(VaultError::MissingFrontmatter)?;
     let end = rest.find("\n---").ok_or(VaultError::MissingFrontmatter)?;
     let yaml = &rest[..end];
@@ -137,7 +139,15 @@ fn chapter_filename(meta: &ChapterMeta) -> String {
 }
 
 pub(crate) fn write_chapter_file(root: &Path, meta: &ChapterMeta, body: &str) -> Result<(), VaultError> {
-    let path = root.join("manuscript").join(chapter_filename(meta));
+    let filename = chapter_filename(meta);
+    let path = root.join("manuscript").join(&filename);
+    if path.exists() {
+        let text = fs::read_to_string(&path)?;
+        let (existing, _body) = parse_note::<ChapterMeta>(&text)?;
+        if existing.id != meta.id {
+            return Err(VaultError::ChapterCollision(filename));
+        }
+    }
     fs::write(path, render_note(meta, body)?)?;
     Ok(())
 }
@@ -247,6 +257,19 @@ mod tests {
     }
 
     #[test]
+    fn frontmatter_tolerates_crlf_and_multiline_body() {
+        let body = "First line.\r\n\r\nSecond para.\r\n\r\n---\r\n\r\nAfter a break.";
+        let yaml = "name: Peekaboo\r\ncount: 3";
+        let text = format!("---\r\n{}\r\n---\r\n\r\n{}", yaml, body);
+        let (parsed, parsed_body): (Sample, String) = parse_note(&text).unwrap();
+        assert_eq!(parsed, Sample { name: "Peekaboo".into(), count: 3 });
+        assert_eq!(
+            parsed_body,
+            "First line.\n\nSecond para.\n\n---\n\nAfter a break."
+        );
+    }
+
+    #[test]
     fn parse_note_rejects_text_without_frontmatter() {
         let result = parse_note::<Sample>("just a body, no frontmatter");
         assert!(matches!(result, Err(VaultError::MissingFrontmatter)));
@@ -312,6 +335,21 @@ mod tests {
     }
 
     #[test]
+    fn write_chapter_file_rejects_a_colliding_different_chapter() {
+        let parent = tempfile::tempdir().unwrap();
+        let root = create_project(parent.path(), "Hills").unwrap();
+
+        // Same title + position -> same filename, but a different random id.
+        let second = new_chapter_meta("Chapter One", 0);
+        let collision = write_chapter_file(&root, &second, "");
+        assert!(matches!(collision, Err(VaultError::ChapterCollision(_))));
+
+        // Rewriting the original chapter (same id) must still succeed.
+        let original = list_chapters(&root).unwrap()[0].clone();
+        write_chapter_file(&root, &original, "rewritten body").unwrap();
+    }
+
+    #[test]
     fn snapshots_the_project_when_git_is_available() {
         if !git_available() { eprintln!("git not on PATH; skipping"); return; }
         let parent = tempfile::tempdir().unwrap();
@@ -323,5 +361,16 @@ mod tests {
         // Two commits should succeed without error.
         git_commit(&root, "Initial project").unwrap();
         git_commit(&root, "Write chapter one").unwrap();
+    }
+
+    #[test]
+    fn git_commit_is_ok_when_nothing_changed() {
+        if !git_available() { return; }
+        let parent = tempfile::tempdir().unwrap();
+        let root = create_project(parent.path(), "Hills").unwrap();
+        git_init(&root).unwrap();
+        git_commit(&root, "first").unwrap();
+        // No file changes since the last commit: this must still be Ok.
+        git_commit(&root, "second").unwrap();
     }
 }
