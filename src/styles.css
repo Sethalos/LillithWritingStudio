@@ -751,7 +751,11 @@ button { font:inherit; color:inherit; }
 :is(.character-studio,.bible-panel,.research-panel,.history-panel,.visuals-panel) { color:#d7e1e9; background:#09141d; }
 :is(.character-studio,.bible-panel,.research-panel,.history-panel,.visuals-panel) :is(input,textarea,select) { border-color:#294253; color:#edf6fc; background:#102534; font-size:12px; }
 :is(.character-studio,.bible-panel,.research-panel,.history-panel,.visuals-panel) option { color:#edf6fc; background:#102534; }
-/* Native dropdown option lists default to white-on-white on Linux; theme them for the dark chrome so text is always readable. */
+/* WebKitGTK (Linux/Tauri) renders native <select> with the system light GTK
+   theme and ignores the CSS background, so closed dropdowns read white-on-pale.
+   Force CSS rendering app-wide so every select is readable on the dark chrome;
+   panels with their own light styling still override the colours below. */
+select { -webkit-appearance:none; appearance:none; color:#eef4fa; background:#141c24; }
 select option { color:#eef4fa; background:#141c24; }
 :is(.character-studio,.bible-panel,.research-panel,.history-panel,.visuals-panel) :is(label>span,small,p,em,time) { color:#a9bbc8; font-size:max(10px,1em); }
 :is(.character-studio,.bible-panel,.research-panel,.history-panel,.visuals-panel) :is(header,nav,footer,.character-meta,.research-search,.bible-core,.facts,.timeline-editor,.timeline-map) { border-color:#203442; background:#0d1c27; }
