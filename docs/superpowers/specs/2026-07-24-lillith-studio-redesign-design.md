@@ -261,3 +261,18 @@ Each phase is independently usable; we review at each boundary.
 ## 15. Visual design direction
 
 The app name stays **Lillith Writing Studio**, and the chat surface is **Lillith's Studio**. The current UI is a competent dark command-center; the redesign keeps that professional feel but adds **more color and polish** — a refined palette (deep base, a warm signature accent, and distinct per-status colors for insights and canon activity), clearer type hierarchy, comfortable reading measures in the Manuscript and chat, and consistent iconography. A dedicated design pass (frontend-design) produces the theme during the Polish phase.
+
+## 16. Confirmed workflow spine & scope (added 2026-07-25)
+
+**"Simple" means the front-end experience is effortless — NOT that the architecture or feature set is minimal.** The full editorial-intelligence system is IN scope. The app is organized as the user's actual writing workflow, walked like a spine ("where am I, what's the one obvious next thing"):
+
+1. **Brainstorm & Structure** — Lillith's Studio (chat): arcs, chapter foundations, titles.
+2. **Draft** — write chapter-by-chapter in chat; a finished chapter is *placed into* the Manuscript window (re-read / edit / tighten dialogue / research / copy-paste there).
+3. **Editorial Review** (its own phase) — three **audit-only** engines, in order: **Dialogue Voice → Atmosphere Calibration → Author Polish**. They detect/analyse/explain/propose/preview and apply only author-approved changes; they never silently rewrite prose or canon; findings carry stable IDs, definite-vs-uncertain classification, and decision history; rejected findings are suppressed until the source materially changes.
+4. **Manuscript Production** — formatting, cover + interior art (maps/creatures/diagrams via the image model), foreword/acknowledgement, back-cover blurb + art.
+5. **Publishing** — Kindle first, expandable.
+6. **Marketing / Advertising.**
+
+The three engines and their **shared canon / character-voice / scene / findings layer with stable frontmatter IDs** are adopted from a pasted editorial-intelligence spec ("ignore the source, embrace the idea"). Because the vault is authoritative, that spec's two-store DB↔Obsidian sync collapses into **one store** (vault notes with stable IDs) + **git** versioning/backups — satisfying its safety and Obsidian goals natively. Dashboard info-panels ("Act II Ch 3 — Reanna meets Illythia…", character side-cards) are **fluff/nice-to-have, not canon**.
+
+**Build order follows the workflow:** foundation (vault storage — done) → daily drafting loop (open project → chat → chapter lands in Manuscript → canon capture) → editorial engines (needs the shared canon + stable-manuscript-addressing foundation) → production → publishing → marketing.
