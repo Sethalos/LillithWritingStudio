@@ -75,7 +75,7 @@ export function createBlankWorkspace(title = "Untitled project", coverImageDataU
 }
 
 export async function saveDocument(node: ManuscriptNode, content: string): Promise<number> {
-  if (isTauri()) return invoke<number>("save_document", { documentId: node.id, content, expectedRevision: node.revision });
+  if (isTauri()) return invoke<number>("save_vault_document", { documentId: node.id, content, expectedRevision: node.revision });
   localStorage.setItem(`lillith:document:${node.id}`, content);
   await new Promise((resolve) => setTimeout(resolve, 220));
   return node.revision + 1;
@@ -88,6 +88,15 @@ export function saveCurrentWorkspace(workspace: WorkspaceData): void {
 
 export function loadCurrentWorkspace(): WorkspaceData | null {
   return loadWorkspace();
+}
+
+export async function loadTauriWorkspace(): Promise<WorkspaceData | null> {
+  if (!isTauri()) return null;
+  try {
+    return await invoke<WorkspaceData>("load_vault_workspace");
+  } catch {
+    return null;
+  }
 }
 
 export function listSavedWorkspaces(): WorkspaceData[] {
@@ -128,7 +137,7 @@ export async function chooseAndOpenProject(): Promise<WorkspaceData | null> {
   if (!isTauri()) return loadWorkspace();
   const selected = await open({ directory: true, multiple: false, title: "Open a Lillith Writing Studio project" });
   if (!selected) return null;
-  return invoke<WorkspaceData>("open_project", { projectPath: selected });
+  return invoke<WorkspaceData>("open_vault_project", { projectPath: selected });
 }
 
 export async function chooseAndCreateProject(title: string, coverImageDataUrl?: string): Promise<WorkspaceData | null> {
@@ -139,7 +148,7 @@ export async function chooseAndCreateProject(title: string, coverImageDataUrl?: 
   }
   const selected = await open({ directory: true, multiple: false, title: "Choose where to create your project" });
   if (!selected) return null;
-  return invoke<WorkspaceData>("create_project", { parentPath: selected, title, coverImageDataUrl: coverImageDataUrl ?? null });
+  return invoke<WorkspaceData>("create_vault_project", { parentPath: selected, title });
 }
 
 export async function createManuscriptNode(parentId: string, kind: "chapter" | "scene", title: string, projectId: string): Promise<ManuscriptNode> {
