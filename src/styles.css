@@ -751,6 +751,8 @@ button { font:inherit; color:inherit; }
 :is(.character-studio,.bible-panel,.research-panel,.history-panel,.visuals-panel) { color:#d7e1e9; background:#09141d; }
 :is(.character-studio,.bible-panel,.research-panel,.history-panel,.visuals-panel) :is(input,textarea,select) { border-color:#294253; color:#edf6fc; background:#102534; font-size:12px; }
 :is(.character-studio,.bible-panel,.research-panel,.history-panel,.visuals-panel) option { color:#edf6fc; background:#102534; }
+/* Native dropdown option lists default to white-on-white on Linux; theme them for the dark chrome so text is always readable. */
+select option { color:#eef4fa; background:#141c24; }
 :is(.character-studio,.bible-panel,.research-panel,.history-panel,.visuals-panel) :is(label>span,small,p,em,time) { color:#a9bbc8; font-size:max(10px,1em); }
 :is(.character-studio,.bible-panel,.research-panel,.history-panel,.visuals-panel) :is(header,nav,footer,.character-meta,.research-search,.bible-core,.facts,.timeline-editor,.timeline-map) { border-color:#203442; background:#0d1c27; }
 :is(.character-studio,.bible-panel,.research-panel,.history-panel,.visuals-panel) :is(aside,main,.character-form,.character-fields,.research-fields,.history-detail,.version-comparison>div) { border-color:#203442; color:#dce8f0; background:#0a1720; }
