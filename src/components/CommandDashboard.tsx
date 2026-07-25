@@ -39,7 +39,10 @@ export function CommandDashboard({ project, nodes, characters, workflow, memoryA
   useEffect(() => {
     let cancelled = false;
     setTasks([]);setFocus(undefined);setBible([]);setTimeline([]);setResearch([]);setPipelines([]);setLoadError("");
-    Promise.all([loadDashboardTasks(project.id), loadDailyFocus(project.id), loadBibleEntities(), loadTimelineEvents(), loadResearchSources(), loadRevisionPipelines()]).then(([nextTasks, nextFocus, nextBible, nextTimeline, nextResearch, nextPipelines]) => {
+    // Individual old-database loaders degrade to empty on a vault project (which
+    // has no legacy SQLite store) so the dashboard renders calmly instead of
+    // surfacing "Open a project first" until these features are vault-migrated.
+    Promise.all([loadDashboardTasks(project.id).catch(() => []), loadDailyFocus(project.id).catch(() => undefined), loadBibleEntities().catch(() => []), loadTimelineEvents().catch(() => []), loadResearchSources().catch(() => []), loadRevisionPipelines().catch(() => [])]).then(([nextTasks, nextFocus, nextBible, nextTimeline, nextResearch, nextPipelines]) => {
       if (cancelled) return;
       setTasks(current=>current.length?current:nextTasks); setFocus(current=>current??nextFocus); setBible(nextBible); setTimeline(nextTimeline); setResearch(nextResearch); setPipelines(nextPipelines);
     }).catch(error=>{if(!cancelled)setLoadError(`Dashboard data could not be loaded: ${String(error)}`)});
