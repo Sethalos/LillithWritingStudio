@@ -20,6 +20,7 @@ interface Props {
   running: boolean;
   error?: string;
   selectedText?: string;
+  currentManuscript?: string;
   onKeepText?: (text:string) => void;
 }
 
@@ -39,7 +40,9 @@ function summarizeList(values: string[], emptyLabel: string) {
   return cleaned.slice(0, 4).join(" · ") + (cleaned.length > 4 ? ` · +${cleaned.length - 4}` : "");
 }
 
-function buildSystemPrompt(workflow: WorkflowState, context: ContextPackage, selectedText?: string) {
+function buildSystemPrompt(workflow: WorkflowState, context: ContextPackage, selectedText?: string, currentManuscript?: string) {
+  const chapter = currentManuscript?.replace(/<br\s*\/?\s*>/gi, "\n").replace(/<\/p>/gi, "\n\n").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").trim() ?? "";
+  const boundedChapter = chapter.length > 16000 ? `[Earlier text omitted]\n${chapter.slice(-16000)}` : chapter;
   return [
     "You are Lillith, the user's embedded writing assistant.",
     "Help with brainstorming, drafting, revising, and decision-making.",
@@ -54,11 +57,12 @@ function buildSystemPrompt(workflow: WorkflowState, context: ContextPackage, sel
     `Project brief: ${workflow.projectBrief.workingTitle || workflow.projectBrief.originalPremise || "Not filled yet."}`,
     `Creative North Star: ${workflow.creativeNorthStar.emotionalPromise || workflow.creativeNorthStar.readerExperience || "Not filled yet."}`,
     selectedText?.trim() ? `Selected manuscript text:\n${selectedText.trim()}` : "No manuscript selection is currently active.",
+    boundedChapter ? `The chapter currently open in the manuscript window (read-only context — do not repeat it back verbatim):\n"""\n${boundedChapter}\n"""` : "The manuscript chapter is currently empty.",
     `Context package: ${context.items.length} sources, ${context.estimatedInputTokens.toLocaleString()} estimated tokens.`,
   ].join("\n");
 }
 
-export function AiPanel({ workflow, context, proposal, decision, onDecision, modelLabel, onRun, running, error, selectedText, onKeepText }: Props) {
+export function AiPanel({ workflow, context, proposal, decision, onDecision, modelLabel, onRun, running, error, selectedText, currentManuscript, onKeepText }: Props) {
   const [mode, setMode] = useState<PanelMode>("chat");
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -159,7 +163,7 @@ export function AiPanel({ workflow, context, proposal, decision, onDecision, mod
       const response = await runAiChat({
         provider: execution.provider,
         model: execution.model,
-        system: buildSystemPrompt(workflow, context, selectedText),
+        system: buildSystemPrompt(workflow, context, selectedText, currentManuscript),
         messages: conversation.map((entry) => ({ role: entry.role, content: entry.content, createdAt:entry.createdAt, attachments:entry.attachments })),
         temperature: 0.55,
         maxOutputTokens: 1200,
