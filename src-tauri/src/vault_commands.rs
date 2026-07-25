@@ -94,10 +94,13 @@ mod tests {
         let parent = tempfile::tempdir().unwrap();
         let root = vault::create_project(parent.path(), "Html").unwrap();
         let id = vault::list_chapters(&root).unwrap()[0].id.clone();
-        vault::save_chapter(&root, &id, "<p>The rain <em>fell</em> softly.</p>", 0).unwrap();
+        // The attribute (space inside the tag) makes the naive split_whitespace
+        // count differ from the tag-stripped count, so this test actually guards
+        // the HTML stripping: raw would count 4 tokens, stripped counts 3 words.
+        vault::save_chapter(&root, &id, "<p style=\"m\">The rain fell.</p>", 0).unwrap();
         let ws = build_workspace(&root).unwrap();
         let scene = ws.nodes.iter().find(|n| n.kind == "scene").unwrap();
-        assert_eq!(scene.word_count, 4);
+        assert_eq!(scene.word_count, 3);
     }
 
     #[test]
