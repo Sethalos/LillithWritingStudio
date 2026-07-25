@@ -3,7 +3,7 @@
 * { box-sizing: border-box; }
 body { margin:0; min-width:1024px; min-height:720px; overflow:auto; background:#0b1116; }
 button { font:inherit; color:inherit; }
-.app-frame { display:grid; grid-template-columns:218px 1fr; min-height:100vh; height:auto; background:#0b1116; color:#f3ede1; }
+.app-frame { display:grid; grid-template-columns:218px 1fr; height:100vh; overflow:hidden; background:#0b1116; color:#f3ede1; }
 .panel { background:#10171f; color:#d9d3c9; }
 .binder { display:flex; flex-direction:column; border-right:1px solid #1b232d; background:linear-gradient(180deg,#0f161d,#10171f); overflow:hidden; }
 .binder-scroll { flex:1; min-height:0; overflow:auto; display:flex; flex-direction:column; padding-bottom:8px; scrollbar-gutter:stable; }
@@ -61,7 +61,7 @@ button { font:inherit; color:inherit; }
 .binder-footer span:first-child::before,
 .binder-footer span:last-child::before { content:""; width:6px; height:6px; border-radius:50%; background:#6f9475; display:inline-block; }
 .binder-footer span:last-child::before { background:#6f9475; }
-.workspace { min-width:0; display:flex; flex-direction:column; min-height:100vh; background:#0b1116; }
+.workspace { min-width:0; display:flex; flex-direction:column; min-height:0; overflow:hidden; background:#0b1116; }
 .topbar { height:66px; flex:none; display:flex; align-items:stretch; gap:18px; padding:0 16px 0 20px; border-bottom:1px solid #1d2730; background:linear-gradient(180deg,#0d141b,#0b1116); color:#f5efe0; }
 .topbar-title { display:flex; align-items:center; gap:12px; font:700 18px "Libre Caslon Text"; color:#e8b85b; }
 .topbar-title strong { font-size:18px; }
@@ -71,7 +71,7 @@ button { font:inherit; color:inherit; }
 .topbar-actions button.primary { border-color:#d6a54f; background:#d6a54f; color:#111820; }
 .avatar-pill { width:30px; height:30px; display:grid; place-items:center; border-radius:50%; background:#1f2731; color:#f4ede0; font-size:12px; border:1px solid #33404d; }
 .user-name { color:#d7dfea; font-size:12px; white-space:nowrap; }
-.workspace-body { flex:1; min-height:0; display:grid; grid-template-columns:minmax(0,1fr); gap:12px; padding:12px; overflow:visible; }
+.workspace-body { flex:1; min-height:0; display:grid; grid-template-columns:minmax(0,1fr); gap:12px; padding:12px; overflow:hidden; }
 .workspace-body.dashboard-workspace { grid-template-columns:minmax(0,1fr); }
 .dashboard-workspace .center-pane { border-radius:10px; }
 .center-pane { min-width:0; min-height:0; overflow:hidden; border:1px solid #1d2730; border-radius:18px; background:linear-gradient(180deg,#0f151d,#0b1116); box-shadow:0 0 0 1px #0002,0 16px 40px #0008; }
