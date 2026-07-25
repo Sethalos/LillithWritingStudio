@@ -16,3 +16,4 @@ src-tauri/target/
 .env*
 !.env.example
 projects/
+Writing Projects/

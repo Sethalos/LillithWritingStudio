@@ -80,14 +80,18 @@ fn now_iso() -> String {
     chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
 }
 
-/// Create a new project folder `<parent>/<slug>/` with project.md, an empty
-/// manuscript/ folder, and a first chapter. Returns the project root path.
+/// Create a new project folder `<parent>/<slug>/` fully scaffolded: project.md,
+/// CLAUDE.md context, the manuscript/ folder with a first chapter, the canon
+/// folders (characters/, world/, research/, chats/, publish/), and the
+/// single-file canon indexes (timeline.md, arcs.md, tasks.md). Returns the root.
 pub fn create_project(parent: &Path, title: &str) -> Result<PathBuf, VaultError> {
     let root = parent.join(slugify(title));
     if root.exists() {
         return Err(VaultError::AlreadyExists(root.to_string_lossy().into_owned()));
     }
-    fs::create_dir_all(root.join("manuscript"))?;
+    for folder in ["manuscript", "characters", "world", "research", "chats", "publish"] {
+        fs::create_dir_all(root.join(folder))?;
+    }
     let now = now_iso();
     let meta = ProjectMeta {
         format_version: 1,
@@ -99,6 +103,10 @@ pub fn create_project(parent: &Path, title: &str) -> Result<PathBuf, VaultError>
     };
     let body = format!("# {}\n\nProject notes.\n", title);
     fs::write(root.join("project.md"), render_note(&meta, &body)?)?;
+    fs::write(root.join("CLAUDE.md"), format!("# {title}\n\nProject context for Lillith. Manuscript lives in manuscript/. Canon lives in characters/, world/, timeline.md, and arcs.md.\n"))?;
+    fs::write(root.join("timeline.md"), format!("# {title} — Timeline\n\n"))?;
+    fs::write(root.join("arcs.md"), format!("# {title} — Story Arcs\n\n"))?;
+    fs::write(root.join("tasks.md"), "# Tasks & Goals\n\n".to_string())?;
     write_chapter_file(&root, &new_chapter_meta("Chapter One", 0), "")?;
     Ok(root)
 }
@@ -303,6 +311,19 @@ mod tests {
         create_project(parent.path(), "Twice").unwrap();
         let second = create_project(parent.path(), "Twice");
         assert!(matches!(second, Err(VaultError::AlreadyExists(_))));
+    }
+
+    #[test]
+    fn create_project_scaffolds_full_structure() {
+        let parent = tempfile::tempdir().unwrap();
+        let root = create_project(parent.path(), "Full Scaffold").unwrap();
+        for folder in ["manuscript", "characters", "world", "research", "chats", "publish"] {
+            assert!(root.join(folder).is_dir(), "missing folder {folder}");
+        }
+        for file in ["project.md", "CLAUDE.md", "timeline.md", "arcs.md", "tasks.md"] {
+            assert!(root.join(file).is_file(), "missing file {file}");
+        }
+        assert_eq!(list_chapters(&root).unwrap().len(), 1);
     }
 
     #[test]
