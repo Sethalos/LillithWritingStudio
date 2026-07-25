@@ -4,7 +4,16 @@ import type { Character, CharacterIdentity, CharacterPsychology, VoiceLock } fro
 const isTauri = () => "__TAURI_INTERNALS__" in window;
 
 export async function loadCharacters(projectId?: string): Promise<Character[]> {
-  if (isTauri()) return invoke<Character[]>("list_characters");
+  if (isTauri()) {
+    try {
+      return await invoke<Character[]>("list_characters");
+    } catch {
+      // A vault project has no legacy SQLite character store; treat as empty
+      // until characters are migrated to vault notes. Prevents project load
+      // from aborting on the old "Open a project first" backend error.
+      return [];
+    }
+  }
   const prefix = projectId ? `lillith:character:${projectId}:` : "lillith:character:";
   return Object.keys(localStorage)
     .filter((key) => key.startsWith(prefix))

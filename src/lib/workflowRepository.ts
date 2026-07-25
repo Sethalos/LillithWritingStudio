@@ -18,8 +18,13 @@ function readBrowserState(projectId: string): WorkflowState | null {
 export async function loadWorkflowState(project: Project, nodes: ManuscriptNode[], characters: Character[]): Promise<WorkflowState> {
   const inferred = inferWorkflowState(project, nodes, characters, createBlankWorkflowState(project));
   if (isTauri()) {
-    const stored = await invoke<WorkflowState | null>("load_workflow_state");
-    return stored ? inferWorkflowState(project, nodes, characters, stored) : inferred;
+    try {
+      const stored = await invoke<WorkflowState | null>("load_workflow_state");
+      return stored ? inferWorkflowState(project, nodes, characters, stored) : inferred;
+    } catch {
+      // Vault projects have no legacy workflow store yet; use the inferred state.
+      return inferred;
+    }
   }
   const stored = readBrowserState(project.id);
   return stored ? inferWorkflowState(project, nodes, characters, stored) : inferred;
