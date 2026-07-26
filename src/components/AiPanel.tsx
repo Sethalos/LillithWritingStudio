@@ -67,6 +67,7 @@ export function AiPanel({ workflow, context, proposal, decision, onDecision, mod
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [chatError, setChatError] = useState("");
+  const [keepHint, setKeepHint] = useState("");
   const [chatEntries, setChatEntries] = useState<ChatEntry[]>([]);
   const [chatLoaded, setChatLoaded] = useState(false);
   const [chatUsage, setChatUsage] = useState<{ inputTokens?: number; outputTokens?: number }>({});
@@ -192,6 +193,27 @@ export function AiPanel({ workflow, context, proposal, decision, onDecision, mod
     queueMicrotask(() => composerRef.current?.focus());
   };
 
+  // Read the live highlight, but only honor it when it lands inside the chat
+  // transcript — a stray selection in the manuscript or composer doesn't count.
+  const keepChatSelection = () => {
+    if (!onKeepText) return;
+    const selection = window.getSelection();
+    const text = selection?.toString() ?? "";
+    const container = transcriptRef.current;
+    const inTranscript = Boolean(
+      selection && container && !selection.isCollapsed &&
+      container.contains(selection.anchorNode) && container.contains(selection.focusNode),
+    );
+    if (!text.trim() || !inTranscript) {
+      setKeepHint("Highlight text in the chat first");
+      window.setTimeout(() => setKeepHint(""), 3000);
+      return;
+    }
+    onKeepText(text);
+    selection?.removeAllRanges();
+    setKeepHint("");
+  };
+
   const clearChat = () => {
     setChatEntries([
       {
@@ -234,11 +256,12 @@ export function AiPanel({ workflow, context, proposal, decision, onDecision, mod
   };
 
   if(onKeepText){return <div className="lillith-chat-simple">
-    <header className="lillith-chat-header"><div className="lillith-avatar">L</div><div><strong>Lillith</strong><small>{execution?`${execution.provider.label} · ${execution.model}`:"Configure a model to begin"}</small></div></header>
+    <header className="lillith-chat-header"><div className="lillith-avatar">L</div><div><strong>Lillith</strong><small>{execution?`${execution.provider.label} · ${execution.model}`:"Configure a model to begin"}</small></div><button type="button" className="keep-in-manuscript" onClick={keepChatSelection} title="Append the text you've highlighted in the chat to the manuscript"><Check size={14}/> Keep in manuscript</button></header>
     <div className="chat-transcript" ref={transcriptRef}>
-      {chatEntries.map(entry=><article key={entry.id} className={`chat-message ${entry.role}`}><span>{entry.role==="user"?"You":"Lillith"}</span><p>{entry.content}</p>{entry.attachments?.length?<div className="message-attachments">{entry.attachments.map(item=><span key={`${entry.id}-${item.name}`}>{item.mimeType.startsWith("image/")?<ImageIcon size={12}/>:<FileText size={12}/>} {item.name}</span>)}</div>:null}{entry.role==="assistant"&&<button className="keep-chat-text" onClick={()=>onKeepText(entry.content)}><Check size={13}/> Keep in manuscript</button>}</article>)}
+      {chatEntries.map(entry=><article key={entry.id} className={`chat-message ${entry.role}`}><span>{entry.role==="user"?"You":"Lillith"}</span><p>{entry.content}</p>{entry.attachments?.length?<div className="message-attachments">{entry.attachments.map(item=><span key={`${entry.id}-${item.name}`}>{item.mimeType.startsWith("image/")?<ImageIcon size={12}/>:<FileText size={12}/>} {item.name}</span>)}</div>:null}</article>)}
       {sending&&<div className="lillith-typing"><i/><i/><i/><span>Lillith is thinking…</span></div>}
     </div>
+    {keepHint&&<div className="keep-hint" role="status">{keepHint}</div>}
     {selectedText?.trim()&&<button className="simple-selection" onClick={insertSelection}>Add selected manuscript text to this message</button>}
     {attachments.length>0&&<div className="pending-attachments">{attachments.map((item,index)=><div key={`${item.name}-${index}`}>{item.mimeType.startsWith("image/")&&item.dataUrl?<img src={item.dataUrl} alt=""/>:item.mimeType.startsWith("image/")?<ImageIcon size={18}/>:<FileText size={18}/>}<span><strong>{item.name}</strong><small>{Math.max(1,Math.round(item.size/1024))} KB</small></span><button aria-label={`Remove ${item.name}`} onClick={()=>setAttachments(all=>all.filter((_,itemIndex)=>itemIndex!==index))}><Trash2 size={13}/></button></div>)}</div>}
     <div className="simple-chat-composer"><button className="attach-button" aria-label="Attach files" title="Attach images or documents" onClick={()=>attachmentRef.current?.click()}><Paperclip size={19}/></button><input ref={attachmentRef} hidden multiple type="file" accept="image/*,.txt,.md,.csv,.json,.html,.htm,text/*" onChange={event=>void attachFiles(event.target.files)}/><textarea ref={composerRef} value={draft} onChange={event=>setDraft(event.target.value)} placeholder="Message Lillith…" onKeyDown={event=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();void sendChat(draft)}}}/><button className="simple-send" aria-label="Send message" onClick={()=>void sendChat(draft)} disabled={sending||(!draft.trim()&&!attachments.length)}><Send size={18}/></button></div>
