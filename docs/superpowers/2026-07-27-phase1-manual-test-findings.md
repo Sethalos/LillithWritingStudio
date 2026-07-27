@@ -102,6 +102,48 @@ no Approve card, and no warning, with the prose gone. Previously the writer at l
 JSON containing it. A `truncated` flag now threads from the Rust parser through to a visible
 "this reply was cut off" note on the message.
 
+## Vault node operations (2026-07-27, second plan)
+
+The manuscript tree could navigate but not much else, because `open_vault_project`
+populates `VaultState` while `create_manuscript_node`, `update_manuscript_metadata`,
+`reorder_manuscript_nodes` and the workflow-state commands are bound to
+`AppState.repository` — 73 commands to 5. On a vault project every one failed with
+"Open a project first". Create, rename, delete and project settings are now vault-native
+(9 commits, `77ba6ed..bac6c7d`).
+
+A whole-branch review caught a Critical the per-task reviews could not see: the pre-delete
+git snapshot used `let _ = vault::git_commit(...)`, discarding the only thing protecting the
+writer. A vault with no `.git` — copied to another machine, restored from a zip, or created
+while `git` was off the PATH — would have deleted a chapter irrecoverably while the app
+claimed to snapshot first. `vault::is_git_repo_root` now requires `rev-parse --show-toplevel`
+to canonicalize to the vault itself, which also closes a second hole: a vault nested inside
+another repo would have staged and committed the user's entire unrelated worktree.
+
+**Renaming and deleting are scene-only.** `build_workspace` synthesizes `book-root` and a
+`chapter-root` titled "Manuscript"; neither is a real file, so neither offers rename or
+delete. Every real vault chapter is a `kind:"scene"` node beneath them — the vault is flat.
+
+### Known-unpinned after the final review
+
+Behaviour is correct and verified; these lack permanent regression tests:
+
+- `scene_node_is_the_single_source_of_the_scene_dto` passes with its fix reverted, and does
+  not touch the two `lib.rs` sites the finding was about.
+- Both `workflowRepository.test.ts` first-run/propagation tests pass with their fix reverted.
+  The load-bearing pin is the Rust `workflow_state_is_none_when_no_project_is_open`.
+- The propagated-commit-failure branch of the delete precondition was verified by hand
+  (a failing `pre-commit` hook) but has no permanent test.
+
+### Known-live minors from that plan
+
+- The header `+` targets the first chapter rather than the active one. Invisible on the vault
+  path (flat, one synthetic chapter); reachable only in browser-preview mode.
+- Two overlapping `saveWorkflow` calls can have a late rejection roll back the newer field.
+  Self-corrects on the next successful save.
+- A save-failure banner is cleared by the next manuscript edit, because the load effect
+  depends on `nodes`. Nothing false is shown afterwards — the rollback already restored
+  correct state — but the warning can vanish before it is read.
+
 ## Known-live minor issues
 
 - **Spurious "Save conflict — reopen section".** Switching scenes while a debounced autosave
