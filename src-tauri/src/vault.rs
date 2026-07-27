@@ -234,10 +234,14 @@ pub fn create_chapter(root: &Path, title: &str) -> Result<ChapterMeta, VaultErro
     Ok(meta)
 }
 
-/// Rewrite a chapter's frontmatter title, leaving its body, id, position and
-/// revision untouched. The filename is deliberately left alone: the frontmatter
-/// title is what the workspace reads, and renaming files would break any
-/// Obsidian links the writer has made into the vault.
+/// Rewrite a chapter's frontmatter title. Its id, position and revision are
+/// unchanged, and the prose is preserved: the body is round-tripped through
+/// `parse_note`/`render_note`, which normalizes CRLF to LF and trims leading
+/// and trailing blank lines — exactly the normalization `save_chapter` already
+/// applies on every autosave, so no word of prose can be lost here.
+/// The filename is deliberately left alone: the frontmatter title is what the
+/// workspace reads, and renaming files would break any Obsidian links the
+/// writer has made into the vault.
 pub fn rename_chapter(root: &Path, id: &str, title: &str) -> Result<ChapterMeta, VaultError> {
     let title = title.trim();
     if title.is_empty() { return Err(VaultError::InvalidTitle); }
@@ -279,6 +283,26 @@ pub fn write_workflow_state(root: &Path, state: &serde_json::Value) -> Result<()
 /// True when a `git` executable is on PATH.
 pub fn git_available() -> bool {
     Command::new("git").arg("--version").output().map(|o| o.status.success()).unwrap_or(false)
+}
+
+/// True only when `root` is *itself* the top level of a git repository.
+///
+/// `git -C <dir>` walks up to the nearest ancestor repo, so a vault dropped
+/// inside another repository (a `~/writing` checkout, a code project) would
+/// otherwise appear "under version control" while its snapshots — and the
+/// `add -A` that precedes them — land in that unrelated outer worktree.
+/// Anything destructive must require the repo to be the vault itself.
+pub fn is_git_repo_root(root: &Path) -> bool {
+    let Ok(output) = Command::new("git").arg("-C").arg(root).args(["rev-parse", "--show-toplevel"]).output() else {
+        return false;
+    };
+    if !output.status.success() { return false; }
+    let toplevel = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if toplevel.is_empty() { return false; }
+    match (fs::canonicalize(&toplevel), fs::canonicalize(root)) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => false,
+    }
 }
 
 fn run_git(root: &Path, args: &[&str]) -> Result<(), VaultError> {
@@ -492,6 +516,22 @@ mod tests {
 
     #[test]
     fn read_workflow_state_rejects_a_corrupt_file_instead_of_hiding_it(){let dir=tempfile::tempdir().unwrap();let root=create_project(dir.path(),"Test").unwrap();fs::write(root.join("workflow.json"),"{ not valid json").unwrap();let result=read_workflow_state(&root);assert!(matches!(result,Err(VaultError::InvalidWorkflowState)),"expected InvalidWorkflowState, got {result:?}");}
+
+    #[test]
+    fn is_git_repo_root_only_accepts_the_vault_s_own_repo() {
+        if !git_available() { eprintln!("git not on PATH; skipping"); return; }
+        let parent = tempfile::tempdir().unwrap();
+        let root = create_project(parent.path(), "Hills").unwrap();
+        // No repo anywhere: not version controlled.
+        assert!(!is_git_repo_root(&root));
+        // A repo around the *parent* must not count as the vault's own repo,
+        // or deleting a scene would commit that unrelated worktree.
+        git_init(parent.path()).unwrap();
+        assert!(!is_git_repo_root(&root));
+        // Its own repo does count.
+        git_init(&root).unwrap();
+        assert!(is_git_repo_root(&root));
+    }
 
     #[test]
     fn git_commit_is_ok_when_nothing_changed() {

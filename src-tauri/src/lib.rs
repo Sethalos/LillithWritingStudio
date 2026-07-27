@@ -95,13 +95,7 @@ fn create_vault_chapter(state: tauri::State<'_, VaultState>, title: String) -> R
     let meta = vault::create_chapter(root, &title).map_err(|e| e.to_string())?;
     let project_id = vault::read_project(root).map_err(|e| e.to_string())?.project_id;
     let (_meta, body) = vault::read_chapter(root, &meta.id).map_err(|e| e.to_string())?;
-    Ok(repository::ManuscriptNodeDto {
-        id: meta.id, project_id, parent_id: Some("chapter-root".into()), kind: "scene".into(),
-        title: meta.title, synopsis: None, scene_goal: None, scene_type: None, scene_location: None,
-        word_goal: None, tags: vec![], position: meta.position, pov_character_id: None,
-        word_count: vault_commands::word_count(&body), content: Some(body), revision: meta.revision,
-        updated_at: meta.updated_at,
-    })
+    Ok(vault_commands::scene_node(&project_id, &meta, &body))
 }
 
 #[tauri::command]
@@ -111,22 +105,14 @@ fn rename_vault_chapter(state: tauri::State<'_, VaultState>, document_id: String
     let meta = vault::rename_chapter(root, &document_id, &title).map_err(|e| e.to_string())?;
     let project_id = vault::read_project(root).map_err(|e| e.to_string())?.project_id;
     let (_meta, body) = vault::read_chapter(root, &meta.id).map_err(|e| e.to_string())?;
-    Ok(repository::ManuscriptNodeDto {
-        id: meta.id, project_id, parent_id: Some("chapter-root".into()), kind: "scene".into(),
-        title: meta.title, synopsis: None, scene_goal: None, scene_type: None, scene_location: None,
-        word_goal: None, tags: vec![], position: meta.position, pov_character_id: None,
-        word_count: vault_commands::word_count(&body), content: Some(body), revision: meta.revision,
-        updated_at: meta.updated_at,
-    })
+    Ok(vault_commands::scene_node(&project_id, &meta, &body))
 }
 
 #[tauri::command]
 fn delete_vault_chapter(state: tauri::State<'_, VaultState>, document_id: String) -> Result<(), String> {
     let guard = state.project_root.lock().map_err(|_| "Vault lock poisoned".to_string())?;
     let root = guard.as_ref().ok_or_else(|| "No project is open".to_string())?;
-    let (meta, _body) = vault::read_chapter(root, &document_id).map_err(|e| e.to_string())?;
-    let _ = vault::git_commit(root, &format!("Snapshot before deleting {}", meta.title));
-    vault::delete_chapter(root, &document_id).map_err(|e| e.to_string())
+    vault_commands::delete_chapter_with_snapshot(root, &document_id)
 }
 
 #[tauri::command]
@@ -143,8 +129,7 @@ fn save_vault_document(state: tauri::State<'_, VaultState>, document_id: String,
 #[tauri::command]
 fn load_vault_workflow_state(state: tauri::State<'_, VaultState>) -> Result<Option<serde_json::Value>, String> {
     let guard = state.project_root.lock().map_err(|_| "Vault lock poisoned".to_string())?;
-    let root = guard.as_ref().ok_or_else(|| "No project is open".to_string())?;
-    vault::read_workflow_state(root).map_err(|e| e.to_string())
+    vault_commands::workflow_state(guard.as_deref())
 }
 
 #[tauri::command]
