@@ -8,11 +8,21 @@ interface Props {
   activeId: Id;
   onSelect: (id: Id) => void;
   onCreate: (kind: "chapter" | "scene", parentId: Id) => void;
+  onRename: (id: Id, title: string) => void;
+  onDelete: (id: Id) => void;
 }
 
-export function ManuscriptTree({ nodes, activeId, onSelect, onCreate }: Props) {
+// "book-root" and "chapter-root" are the synthetic ids the vault backend stamps
+// onto its two scaffolding nodes (src-tauri/src/vault_commands.rs) — there is no
+// file on disk backing either one, so they must never offer Rename or Delete.
+const isSyntheticNode = (id: string) => id === "book-root" || id === "chapter-root";
+
+export function ManuscriptTree({ nodes, activeId, onSelect, onCreate, onRename, onDelete }: Props) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [menuFor, setMenuFor] = useState("");
+  const [renameFor, setRenameFor] = useState("");
+  const [renameValue, setRenameValue] = useState("");
+  const [deleteFor, setDeleteFor] = useState("");
   const tree = useMemo(() => buildTree(nodes), [nodes]);
   const book = nodes.find((node) => node.kind === "book");
   const bookId = book?.id ?? "";
@@ -30,17 +40,23 @@ export function ManuscriptTree({ nodes, activeId, onSelect, onCreate }: Props) {
       return next;
     });
 
-  // Dismiss an open row menu on Escape or on a click anywhere outside it. The
-  // data attribute keeps the owning ⋮ button out of "outside", so re-clicking it
-  // still closes the menu through its own toggle rather than closing and reopening.
+  // Dismiss an open row menu (or its rename/delete follow-up) on Escape or on a
+  // click anywhere outside it. The data attribute keeps the owning ⋮ button, the
+  // rename form, and the delete confirmation out of "outside", so interacting
+  // with any of them never closes itself out from under the writer.
   useEffect(() => {
-    if (!menuFor) return;
+    if (!menuFor && !renameFor && !deleteFor) return;
+    const closeAll = () => {
+      setMenuFor("");
+      setRenameFor("");
+      setDeleteFor("");
+    };
     const onPointerDown = (event: MouseEvent) => {
       if ((event.target as HTMLElement | null)?.closest("[data-tree-menu]")) return;
-      setMenuFor("");
+      closeAll();
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMenuFor("");
+      if (event.key === "Escape") closeAll();
     };
     document.addEventListener("mousedown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
@@ -48,7 +64,19 @@ export function ManuscriptTree({ nodes, activeId, onSelect, onCreate }: Props) {
       document.removeEventListener("mousedown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [menuFor]);
+  }, [menuFor, renameFor, deleteFor]);
+
+  const startRename = (id: string, title: string) => {
+    setMenuFor("");
+    setDeleteFor("");
+    setRenameValue(title);
+    setRenameFor(id);
+  };
+  const startDelete = (id: string) => {
+    setMenuFor("");
+    setRenameFor("");
+    setDeleteFor(id);
+  };
 
   const renderRow = (item: TreeNode, depth: number) => {
     const { node, children, words } = item;
@@ -57,6 +85,7 @@ export function ManuscriptTree({ nodes, activeId, onSelect, onCreate }: Props) {
     // Only scenes open a document. A chapter or part row expands and collapses —
     // clicking one must never swap the editor to some other scene.
     const isScene = node.kind === "scene";
+    const isSynthetic = isSyntheticNode(node.id);
     return (
       <li key={node.id}>
         <div className={`tree-row ${node.id === activeId ? "current" : ""}`} style={{ paddingLeft: `${8 + depth * 14}px` }}>
@@ -72,23 +101,66 @@ export function ManuscriptTree({ nodes, activeId, onSelect, onCreate }: Props) {
             <span>{node.title}</span>
           </button>
           <span className="tree-words">{words.toLocaleString()}</span>
-          {!isScene && (
-            <button className="tree-menu-toggle" data-tree-menu={node.id} aria-label={`Actions for ${node.title}`} aria-expanded={menuFor === node.id} onClick={() => setMenuFor(menuFor === node.id ? "" : node.id)}>
-              <MoreVertical size={12} />
-            </button>
-          )}
+          <button
+            className="tree-menu-toggle"
+            data-tree-menu={node.id}
+            aria-label={`Actions for ${node.title}`}
+            aria-expanded={menuFor === node.id}
+            onClick={() => {
+              const opening = menuFor !== node.id;
+              setMenuFor(opening ? node.id : "");
+              setRenameFor("");
+              setDeleteFor("");
+            }}
+          >
+            <MoreVertical size={12} />
+          </button>
         </div>
         {menuFor === node.id && (
           <div className="tree-menu" role="menu" data-tree-menu={node.id}>
-            {node.kind === "chapter" && (
-              <button onClick={() => { onCreate("scene", node.id); setMenuFor(""); }}>New scene</button>
+            {isScene ? (
+              <>
+                <button onClick={() => startRename(node.id, node.title)}>Rename</button>
+                <button onClick={() => startDelete(node.id)}>Delete</button>
+              </>
+            ) : (
+              <>
+                {node.kind === "chapter" && (
+                  <button onClick={() => { onCreate("scene", node.id); setMenuFor(""); }}>New scene</button>
+                )}
+                <button
+                  disabled={!bookId}
+                  onClick={() => { if (!bookId) return; onCreate("chapter", bookId); setMenuFor(""); }}
+                >
+                  New chapter
+                </button>
+                {!isSynthetic && <button onClick={() => startRename(node.id, node.title)}>Rename</button>}
+              </>
             )}
-            <button
-              disabled={!bookId}
-              onClick={() => { if (!bookId) return; onCreate("chapter", bookId); setMenuFor(""); }}
-            >
-              New chapter
-            </button>
+          </div>
+        )}
+        {renameFor === node.id && (
+          <form
+            className="tree-rename"
+            data-tree-menu={node.id}
+            onSubmit={(event) => {
+              event.preventDefault();
+              const trimmed = renameValue.trim();
+              if (!trimmed) return;
+              onRename(node.id, trimmed);
+              setRenameFor("");
+            }}
+          >
+            <input aria-label="Scene title" value={renameValue} onChange={(event) => setRenameValue(event.target.value)} autoFocus />
+          </form>
+        )}
+        {deleteFor === node.id && (
+          <div className="tree-delete-confirm" role="alertdialog" data-tree-menu={node.id}>
+            <p>{`Delete "${node.title}"? This cannot be undone from the app.`}</p>
+            <div className="tree-delete-confirm-actions">
+              <button onClick={() => { onDelete(node.id); setDeleteFor(""); }}>Delete scene</button>
+              <button onClick={() => setDeleteFor("")}>Cancel</button>
+            </div>
           </div>
         )}
         {children.length > 0 && !isCollapsed && <ul>{children.map((child) => renderRow(child, depth + 1))}</ul>}

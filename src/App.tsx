@@ -11,7 +11,7 @@ import type { EditingMode, ProposalDecision } from "./domain/ai";
 import type { ContextPackage } from "./domain/ai";
 import type { Character, WorkspaceData } from "./domain/models";
 import { createBlankWorkflowState, workflowPhases, type WorkflowPhaseId, type WorkflowState, type WorkflowWorkspaceTarget } from "./domain/workflow";
-import { createBlankWorkspace, createManuscriptNode, loadCurrentWorkspace, loadLocalDocument, reorderManuscriptNodes, saveCurrentWorkspace, saveDocument, updateManuscriptMetadata } from "./lib/repository";
+import { createBlankWorkspace, createManuscriptNode, deleteManuscriptNode, loadCurrentWorkspace, loadLocalDocument, renameManuscriptNode, reorderManuscriptNodes, saveCurrentWorkspace, saveDocument, updateManuscriptMetadata } from "./lib/repository";
 import { blankCharacter, loadCharacters, persistCharacter } from "./lib/characterRepository";
 import { acceptTrackedProposal, decideTrackedProposal, executeEditorOperation, type ProposalSegmentDecision, type ReviewProposal } from "./lib/aiEditorRepository";
 import { configuredExecution, estimateExecutionCost } from "./lib/providerRepository";
@@ -119,6 +119,13 @@ export function App() {
   }, [project, nodes, characters]);
   const useWorkspace = async (workspace: WorkspaceData) => { setProject(workspace.project); setNodes(workspace.nodes); saveCurrentWorkspace(workspace); setMemoryActivities(loadMemoryActivities(workspace.project.id)); const firstScene = workspace.nodes.find((node) => node.kind === "scene"); if (firstScene) setActiveId(firstScene.id); const loaded = await loadCharacters(workspace.project.id); setCharacters(loaded); setSelectedCharacterId(loaded[0]?.id ?? ""); setActiveProposal(undefined); setSelectedText(""); setActiveContext({version:"1",id:crypto.randomUUID(),projectId:workspace.project.id,task:"prose-rewrite",target:{documentId:firstScene?.id??""},items:[],exclusions:[],estimatedInputTokens:0,tokenBudget:12000,assembledAt:new Date().toISOString(),assemblerVersion:"1.0.0"}); setEditorModel("No editor model configured"); setSaveState(`Opened ${workspace.project.title || "current project"}`); setInspector("dashboard"); setShowLauncher(false); };
   const createNode = async (kind: "chapter" | "scene", title: string, explicitParentId?: string) => { const activeChapter = active.kind === "scene" ? active.parentId : active.kind === "chapter" ? active.id : undefined; const parentId = explicitParentId ?? (kind === "chapter" ? nodes.find((node) => node.kind === "book")?.id : activeChapter ?? nodes.find((node) => node.kind === "chapter")?.id); if (!parentId) throw new Error(`Create a ${kind === "scene" ? "chapter" : "book"} first.`); const node = await createManuscriptNode(parentId, kind, title, project.id); setNodes((all) => [...all, node]); if (kind === "scene") setActiveId(node.id); };
+  const renameNode = async (id: string, title: string) => { const target = nodes.find((node) => node.id === id); if (!target) return; const updated = await renameManuscriptNode(target, title); setNodes((all) => all.map((node) => (node.id === updated.id ? updated : node))); };
+  // Deleting the last scene would leave `active` with nothing to fall back to (its
+  // memo does `nodes.find(...scene) ?? nodes.find(...scene)!` — a non-null assertion
+  // that throws once no scene remains), so refuse that case outright. Otherwise, when
+  // the removed scene is the open one, move `activeId` to a surviving scene *before*
+  // dropping the node from `nodes` so the two state updates land in the same render.
+  const deleteNode = async (id: string) => { const target = nodes.find((node) => node.id === id); if (!target) return; const isLastScene = target.kind === "scene" && !nodes.some((node) => node.kind === "scene" && node.id !== id); if (isLastScene) throw new Error("Add another scene before deleting the last one."); await deleteManuscriptNode(target); if (id === activeId) { const survivor = nodes.find((node) => node.kind === "scene" && node.id !== id); if (survivor) setActiveId(survivor.id); } setNodes((all) => all.filter((node) => node.id !== id)); };
   const startComment=async(selection:CommentSelection)=>{try{if(content!==lastSaved.current){setSaveState("Saving…");const revision=await saveDocument(active,content);lastSaved.current=content;setNodes(all=>all.map(node=>node.id===active.id?{...node,content,revision}:node));setSaveState("Saved locally")}setCommentSelection(selection);setInspector("comments")}catch(error){setSaveState("Save needs attention");setAiError(String(error))}};
   const saveWorkflow = async (next: WorkflowState) => {
     setWorkflow(next);
@@ -210,6 +217,8 @@ export function App() {
         activeId={active.id}
         onSelect={setActiveId}
         onCreate={(kind, parentId) => { void createNode(kind, kind === "scene" ? "New scene" : "New chapter", parentId).catch((error) => setAiError(String(error))); }}
+        onRename={(id, title) => { void renameNode(id, title).catch((error) => setAiError(String(error))); }}
+        onDelete={(id) => { void deleteNode(id).catch((error) => setAiError(String(error))); }}
       />
     )}
     <section className="workspace">
