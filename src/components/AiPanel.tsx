@@ -48,7 +48,7 @@ function buildSystemPrompt(workflow: WorkflowState, context: ContextPackage, sel
     "You are Lillith, the user's embedded writing assistant.",
     "Help with brainstorming, drafting, revising, and decision-making.",
     "Use the project context below as guidance, not as something to repeat verbatim.",
-    "When the user asks for prose, produce usable text the user can paste into the manuscript.",
+    "When the user asks for prose, produce usable text and offer it as a proposal the writer can approve into the manuscript with one click. Never tell the writer to copy or paste it themselves — you cannot edit the manuscript directly, but an approved proposal is applied for them.",
     "When the user asks for ideas, offer clear options and explain tradeoffs briefly.",
     "Never overwrite manuscript text silently.",
     "Reply with a single JSON object. Always include a \"text\" field with your conversational message to the writer. ONLY when the writer has asked you to write or draft new prose to add to the manuscript, also include a \"proposal\" object: {\"action\":\"append\",\"text\":\"<the prose to add>\"}. Put that prose in proposal.text, not in text. Never include a proposal when brainstorming, outlining, discussing, or answering questions, and never invent a proposal the writer did not ask for.",
@@ -169,7 +169,7 @@ export function AiPanel({ workflow, context, proposal, decision, onDecision, mod
         system: buildSystemPrompt(workflow, context, selectedText, currentManuscript),
         messages: conversation.map((entry) => ({ role: entry.role, content: entry.content, createdAt:entry.createdAt, attachments:entry.attachments })),
         temperature: 0.55,
-        maxOutputTokens: 1200,
+        maxOutputTokens: 4096,
       });
       setChatEntries((all) => [
         ...all,

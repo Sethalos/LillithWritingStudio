@@ -32,15 +32,42 @@ describe("parseAssistantMessage", () => {
     expect(result.proposal).toEqual({ action: "append", text: "A line." });
   });
 
-  it("treats malformed JSON as plain text", () => {
-    const result = parseAssistantMessage('{"text":"broken');
-    expect(result.text).toBe('{"text":"broken');
+  it("treats malformed JSON with no salvageable text field as plain text", () => {
+    const result = parseAssistantMessage("{oops not valid json");
+    expect(result.text).toBe("{oops not valid json");
     expect(result.proposal).toBeNull();
+    expect(result.truncated).toBe(false);
   });
 
   it("returns the fence-stripped text when a fenced body is not valid JSON (matches the Rust parser)", () => {
     const result = parseAssistantMessage("```json\n{broken\n```");
     expect(result.text).toBe("{broken");
     expect(result.proposal).toBeNull();
+  });
+
+  it("salvages the text field from JSON cut off mid-string", () => {
+    const raw = '{"text":"Great starting mix.\\n\\n### 1. Gazer Maw\\nA pallid creature that';
+    const result = parseAssistantMessage(raw);
+    expect(result.text).toBe("Great starting mix.\n\n### 1. Gazer Maw\nA pallid creature that");
+    expect(result.proposal).toBeNull();
+    expect(result.truncated).toBe(true);
+  });
+
+  it("decodes escaped quotes while salvaging", () => {
+    const raw = '{"text":"She said \\"no\\" and left the';
+    expect(parseAssistantMessage(raw).text).toBe('She said "no" and left the');
+  });
+
+  it("marks complete replies as not truncated", () => {
+    const raw = JSON.stringify({ text: "All done." });
+    const result = parseAssistantMessage(raw);
+    expect(result.text).toBe("All done.");
+    expect(result.truncated).toBe(false);
+  });
+
+  it("still treats non-JSON prose as plain text", () => {
+    const result = parseAssistantMessage("Just thinking out loud.");
+    expect(result.text).toBe("Just thinking out loud.");
+    expect(result.truncated).toBe(false);
   });
 });
