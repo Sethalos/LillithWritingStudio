@@ -23,7 +23,7 @@ export function buildTree(nodes: ManuscriptNode[]): TreeNode[] {
 
     // Traverse parent chain looking for cycles
     const visited = new Set<string>();
-    let current = startNode;
+    let current: ManuscriptNode | undefined = startNode;
     while (current?.parentId) {
       const parentId = current.parentId;
       if (visited.has(parentId)) {
