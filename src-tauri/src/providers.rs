@@ -61,8 +61,17 @@ pub struct ChatAttachment {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManuscriptProposal {
+    pub action: String,
+    pub text: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ChatOutput {
     pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub proposal: Option<ManuscriptProposal>,
 }
 
 pub struct GeneratedChatOutput {
@@ -131,7 +140,8 @@ fn parse_editor_output(raw: &str) -> Result<EditorModelOutput, String> {
 }
 fn parse_bible_output(raw:&str)->Result<BibleExtractionOutput,String>{let cleaned=raw.trim().strip_prefix("```json").or_else(||raw.trim().strip_prefix("```")).unwrap_or(raw.trim()).strip_suffix("```").unwrap_or(raw.trim()).trim();let mut output:BibleExtractionOutput=serde_json::from_str(cleaned).map_err(|error|format!("The model did not return valid Story Bible suggestions: {error}"))?;output.suggestions.truncate(50);for suggestion in&mut output.suggestions{suggestion.entity_type=suggestion.entity_type.trim().to_lowercase().replace(' ',"-");suggestion.name=suggestion.name.trim().to_string();suggestion.summary=suggestion.summary.trim().to_string();suggestion.confidence=suggestion.confidence.clamp(0.0,1.0);suggestion.facts.retain(|fact|!fact.field_name.trim().is_empty()&&!fact.value.trim().is_empty());suggestion.evidence.retain(|item|!item.trim().is_empty())}output.suggestions.retain(|suggestion|!suggestion.name.is_empty()&&!suggestion.entity_type.is_empty());Ok(output)}
 fn parse_review_output(raw:&str)->Result<ReviewOutput,String>{let cleaned=raw.trim().strip_prefix("```json").or_else(||raw.trim().strip_prefix("```")).unwrap_or(raw.trim()).strip_suffix("```").unwrap_or(raw.trim()).trim();let mut output:ReviewOutput=serde_json::from_str(cleaned).map_err(|error|format!("The model did not return a valid review report: {error}"))?;output.issues.truncate(100);for issue in&mut output.issues{issue.category=issue.category.trim().to_lowercase().replace(' ',"-");issue.severity=issue.severity.trim().to_lowercase();if !matches!(issue.severity.as_str(),"error"|"warning"|"note"|"strength"){issue.severity="warning".into()}issue.title=issue.title.trim().to_owned();issue.problem=issue.problem.trim().to_owned();issue.evidence.retain(|value|!value.trim().is_empty());issue.relevant_context.retain(|value|!value.trim().is_empty());issue.strategies.retain(|value|!value.trim().is_empty());}output.issues.retain(|issue|!issue.title.is_empty()&&!issue.problem.is_empty());Ok(output)}
-fn parse_chat_output(raw:&str)->Result<ChatOutput,String>{let cleaned=raw.trim().strip_prefix("```json").or_else(||raw.trim().strip_prefix("```")).unwrap_or(raw.trim()).strip_suffix("```").unwrap_or(raw.trim()).trim();if cleaned.is_empty(){return Err("The model returned an empty response".into())}if let Ok(json)=serde_json::from_str::<Value>(cleaned){if let Some(text)=json.get("text").and_then(Value::as_str){if !text.trim().is_empty(){return Ok(ChatOutput{text:text.trim().to_string()})}}}Ok(ChatOutput{text:cleaned.to_string()})}
+fn parse_manuscript_proposal(value:&Value)->Option<ManuscriptProposal>{let action=value.get("action").and_then(Value::as_str)?;if action!="append"{return None}let text=value.get("text").and_then(Value::as_str)?.trim();if text.is_empty(){return None}Some(ManuscriptProposal{action:"append".to_string(),text:text.to_string()})}
+fn parse_chat_output(raw:&str)->Result<ChatOutput,String>{let cleaned=raw.trim().strip_prefix("```json").or_else(||raw.trim().strip_prefix("```")).unwrap_or(raw.trim()).strip_suffix("```").unwrap_or(raw.trim()).trim();if cleaned.is_empty(){return Err("The model returned an empty response".into())}if let Ok(json)=serde_json::from_str::<Value>(cleaned){if let Some(text)=json.get("text").and_then(Value::as_str){if !text.trim().is_empty(){let proposal=json.get("proposal").and_then(parse_manuscript_proposal);return Ok(ChatOutput{text:text.trim().to_string(),proposal})}}}Ok(ChatOutput{text:cleaned.to_string(),proposal:None})}
 
 fn use_completion_token_field(configuration: &ProviderConfiguration, model: &str) -> bool {
     configuration.kind == "openai" || model.starts_with("gpt-5")
@@ -278,6 +288,14 @@ mod tests {
     fn parses_and_sanitizes_review_issues(){let output=parse_review_output("{\"issues\":[{\"category\":\"Character Voice\",\"severity\":\"urgent\",\"title\":\" Drift \",\"problem\":\"Generic speech\",\"evidence\":[\"Line\"],\"relevantContext\":[],\"strategies\":[\"Tighten\"],\"documentIds\":[\"scene-1\"]}]}").unwrap();assert_eq!(output.issues[0].category,"character-voice");assert_eq!(output.issues[0].severity,"warning");assert_eq!(output.issues[0].title,"Drift");}
     #[test]
     fn parses_chat_output_as_plain_text(){assert_eq!(parse_chat_output("{\"text\":\"Hello\"}").unwrap().text,"Hello");assert_eq!(parse_chat_output("Freeform reply").unwrap().text,"Freeform reply");}
+    #[test]
+    fn parses_append_proposal(){let output=parse_chat_output("{\"text\":\"I drafted it.\",\"proposal\":{\"action\":\"append\",\"text\":\"The door opened.\"}}").unwrap();assert_eq!(output.text,"I drafted it.");let proposal=output.proposal.expect("expected a proposal");assert_eq!(proposal.action,"append");assert_eq!(proposal.text,"The door opened.");}
+    #[test]
+    fn ignores_unsupported_proposal_action(){let output=parse_chat_output("{\"text\":\"Revised.\",\"proposal\":{\"action\":\"replace\",\"text\":\"x\"}}").unwrap();assert!(output.proposal.is_none());}
+    #[test]
+    fn ignores_empty_proposal_text(){let output=parse_chat_output("{\"text\":\"Ok.\",\"proposal\":{\"action\":\"append\",\"text\":\"   \"}}").unwrap();assert!(output.proposal.is_none());}
+    #[test]
+    fn plain_text_reply_has_no_proposal(){let output=parse_chat_output("Just thinking out loud.").unwrap();assert_eq!(output.text,"Just thinking out loud.");assert!(output.proposal.is_none());}
     #[test]
     fn parses_openai_responses_text(){let payload=serde_json::json!({"output":[{"content":[{"type":"output_text","text":"Hello "},{"type":"output_text","text":"world"}]}],"usage":{"input_tokens":12,"output_tokens":4}});assert_eq!(openai_text(&payload).unwrap(),"Hello world");assert_eq!(token_usage(&payload,"openai"),(Some(12),Some(4)));}
     #[test]
