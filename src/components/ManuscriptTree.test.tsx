@@ -41,6 +41,38 @@ describe("ManuscriptTree", () => {
     expect(onSelect).toHaveBeenCalledWith("s2");
   });
 
+  it("collapses a container row instead of selecting some other scene", () => {
+    const onSelect = vi.fn();
+    render(<ManuscriptTree nodes={nodes} activeId="s1" onSelect={onSelect} onCreate={() => undefined} />);
+    fireEvent.click(screen.getByRole("button", { name: "Chapter One" }));
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(screen.queryByText("Station XII")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Chapter One" }));
+    expect(screen.getByText("Station XII")).toBeVisible();
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("reports twisty state with aria-expanded", () => {
+    render(<ManuscriptTree nodes={nodes} activeId="s1" onSelect={() => undefined} onCreate={() => undefined} />);
+    const twisty = screen.getByRole("button", { name: /collapse Chapter One/i });
+    expect(twisty).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(twisty);
+    expect(screen.getByRole("button", { name: /expand Chapter One/i })).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("dismisses the row menu on an outside click and on Escape", () => {
+    render(<ManuscriptTree nodes={nodes} activeId="s1" onSelect={() => undefined} onCreate={() => undefined} />);
+    fireEvent.click(screen.getByRole("button", { name: /actions for Chapter One/i }));
+    expect(screen.getByRole("menu")).toBeVisible();
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /actions for Chapter One/i }));
+    expect(screen.getByRole("menu")).toBeVisible();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
   it("adds a scene to the chapter that owns the row menu", () => {
     const onCreate = vi.fn();
     render(<ManuscriptTree nodes={nodes} activeId="s1" onSelect={() => undefined} onCreate={onCreate} />);
