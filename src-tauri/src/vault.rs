@@ -16,6 +16,7 @@ pub enum VaultError {
     #[error("not a project folder: {0}")] NotAProject(String),
     #[error("chapter file collision: {0}")] ChapterCollision(String),
     #[error("a title cannot be empty")] InvalidTitle,
+    #[error("invalid workflow state")] InvalidWorkflowState,
 }
 
 /// Render a note as `---\n<yaml>---\n\n<body>\n`.
@@ -256,6 +257,22 @@ pub fn delete_chapter(root: &Path, id: &str) -> Result<(), VaultError> {
     Ok(())
 }
 
+/// Read the stored workflow state, or None when the project has never saved one.
+pub fn read_workflow_state(root: &Path) -> Result<Option<serde_json::Value>, VaultError> {
+    let path = root.join("workflow.json");
+    if !path.exists() { return Ok(None); }
+    let text = fs::read_to_string(path)?;
+    if text.trim().is_empty() { return Ok(None); }
+    Ok(serde_json::from_str(&text).ok())
+}
+
+/// Write the workflow state as pretty JSON so vault diffs stay readable.
+pub fn write_workflow_state(root: &Path, state: &serde_json::Value) -> Result<(), VaultError> {
+    let text = serde_json::to_string_pretty(state).map_err(|_| VaultError::InvalidWorkflowState)?;
+    fs::write(root.join("workflow.json"), text)?;
+    Ok(())
+}
+
 /// True when a `git` executable is on PATH.
 pub fn git_available() -> bool {
     Command::new("git").arg("--version").output().map(|o| o.status.success()).unwrap_or(false)
@@ -463,6 +480,9 @@ mod tests {
 
     #[test]
     fn deleting_a_missing_chapter_errors(){let dir=tempfile::tempdir().unwrap();let root=create_project(dir.path(),"Test").unwrap();assert!(delete_chapter(&root,"no-such-id").is_err());}
+
+    #[test]
+    fn workflow_state_round_trips_through_the_vault(){let dir=tempfile::tempdir().unwrap();let root=create_project(dir.path(),"Test").unwrap();assert!(read_workflow_state(&root).unwrap().is_none());let state=serde_json::json!({"projectId":"p1","currentPhaseId":"idea_capture","projectBrief":{"genre":"Dark Fantasy","pov":"third-limited"}});write_workflow_state(&root,&state).unwrap();let loaded=read_workflow_state(&root).unwrap().expect("expected stored state");assert_eq!(loaded["projectBrief"]["genre"],"Dark Fantasy");assert_eq!(loaded["projectBrief"]["pov"],"third-limited");}
 
     #[test]
     fn git_commit_is_ok_when_nothing_changed() {

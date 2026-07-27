@@ -19,10 +19,10 @@ export async function loadWorkflowState(project: Project, nodes: ManuscriptNode[
   const inferred = inferWorkflowState(project, nodes, characters, createBlankWorkflowState(project));
   if (isTauri()) {
     try {
-      const stored = await invoke<WorkflowState | null>("load_workflow_state");
+      const stored = await invoke<WorkflowState | null>("load_vault_workflow_state");
       return stored ? inferWorkflowState(project, nodes, characters, stored) : inferred;
     } catch {
-      // Vault projects have no legacy workflow store yet; use the inferred state.
+      // A first-run project has never saved workflow.json yet; fall back to the inferred state.
       return inferred;
     }
   }
@@ -33,7 +33,7 @@ export async function loadWorkflowState(project: Project, nodes: ManuscriptNode[
 export async function persistWorkflowState(workflow: WorkflowState): Promise<WorkflowState> {
   const saved: WorkflowState = { ...workflow, updatedAt: new Date().toISOString() };
   if (isTauri()) {
-    await invoke("save_workflow_state", { workflowState: saved });
+    await invoke("save_vault_workflow_state", { workflowState: saved });
   } else {
     localStorage.setItem(workflowKey(saved.projectId), JSON.stringify(saved));
   }

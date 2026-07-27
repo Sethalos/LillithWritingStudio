@@ -141,6 +141,20 @@ fn save_vault_document(state: tauri::State<'_, VaultState>, document_id: String,
 }
 
 #[tauri::command]
+fn load_vault_workflow_state(state: tauri::State<'_, VaultState>) -> Result<Option<serde_json::Value>, String> {
+    let guard = state.project_root.lock().map_err(|_| "Vault lock poisoned".to_string())?;
+    let root = guard.as_ref().ok_or_else(|| "No project is open".to_string())?;
+    vault::read_workflow_state(root).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn save_vault_workflow_state(state: tauri::State<'_, VaultState>, workflow_state: serde_json::Value) -> Result<(), String> {
+    let guard = state.project_root.lock().map_err(|_| "Vault lock poisoned".to_string())?;
+    let root = guard.as_ref().ok_or_else(|| "Open a project before saving".to_string())?;
+    vault::write_workflow_state(root, &workflow_state).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn commit_vault_import(state: tauri::State<'_, VaultState>, preview: serde_json::Value) -> Result<Vec<repository::ManuscriptNodeDto>, String> {
     let guard = state.project_root.lock().map_err(|_| "Vault lock poisoned".to_string())?;
     let root = guard.as_ref().ok_or_else(|| "Open a project before importing".to_string())?;
@@ -361,7 +375,7 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .manage(AppState { repository: Mutex::new(None) })
         .manage(VaultState { project_root: Mutex::new(None) })
-        .invoke_handler(tauri::generate_handler![create_project, open_project, load_workspace, create_vault_project, open_vault_project, load_vault_workspace, create_vault_chapter, rename_vault_chapter, delete_vault_chapter, save_vault_document, commit_vault_import, save_project_cover, create_manuscript_node, reorder_manuscript_nodes, update_manuscript_metadata, list_document_comments, create_document_comment, update_document_comment, list_research_sources, save_research_source, delete_research_source, retrieve_research_context, create_project_backup, list_project_backups, verify_project_backup, restore_project_backup_copy, save_document, document_history, restore_document_revision, list_characters, save_character, list_character_states, save_character_state, list_relationships, save_relationship, list_character_arcs, save_character_arc, load_writing_profile, save_writing_profile, load_series_settings, save_series_settings, load_publishing_workflow, save_publishing_workflow, load_workflow_state, save_workflow_state, list_dashboard_tasks, save_dashboard_task, load_daily_focus, save_daily_focus, load_obsidian_config, save_obsidian_config, sync_obsidian, list_obsidian_conflicts, list_series_entries, save_series_entry, delete_series_entry, export_series_pack, import_series_pack, list_timeline_events, save_timeline_event, list_revision_pipelines, save_revision_pipeline, start_pipeline_run, process_pipeline_item, list_bible_entities, save_bible_entity, list_bible_extraction_suggestions, extract_story_bible, decide_bible_extraction, retrieve_bible_context, retrieve_semantic_context, inspect_document, commit_docx_import, export_document, run_editor_operation, run_ai_chat, list_ai_usage, list_ai_reviews, run_ai_review, decide_ai_review_finding, accept_editor_proposal, decide_editor_proposal, providers::save_provider_configuration, providers::discover_provider_models, providers::test_provider_model])
+        .invoke_handler(tauri::generate_handler![create_project, open_project, load_workspace, create_vault_project, open_vault_project, load_vault_workspace, create_vault_chapter, rename_vault_chapter, delete_vault_chapter, save_vault_document, load_vault_workflow_state, save_vault_workflow_state, commit_vault_import, save_project_cover, create_manuscript_node, reorder_manuscript_nodes, update_manuscript_metadata, list_document_comments, create_document_comment, update_document_comment, list_research_sources, save_research_source, delete_research_source, retrieve_research_context, create_project_backup, list_project_backups, verify_project_backup, restore_project_backup_copy, save_document, document_history, restore_document_revision, list_characters, save_character, list_character_states, save_character_state, list_relationships, save_relationship, list_character_arcs, save_character_arc, load_writing_profile, save_writing_profile, load_series_settings, save_series_settings, load_publishing_workflow, save_publishing_workflow, load_workflow_state, save_workflow_state, list_dashboard_tasks, save_dashboard_task, load_daily_focus, save_daily_focus, load_obsidian_config, save_obsidian_config, sync_obsidian, list_obsidian_conflicts, list_series_entries, save_series_entry, delete_series_entry, export_series_pack, import_series_pack, list_timeline_events, save_timeline_event, list_revision_pipelines, save_revision_pipeline, start_pipeline_run, process_pipeline_item, list_bible_entities, save_bible_entity, list_bible_extraction_suggestions, extract_story_bible, decide_bible_extraction, retrieve_bible_context, retrieve_semantic_context, inspect_document, commit_docx_import, export_document, run_editor_operation, run_ai_chat, list_ai_usage, list_ai_reviews, run_ai_review, decide_ai_review_finding, accept_editor_proposal, decide_editor_proposal, providers::save_provider_configuration, providers::discover_provider_models, providers::test_provider_model])
         .run(tauri::generate_context!())
         .expect("failed to run Lillith Writing Studio");
 }
