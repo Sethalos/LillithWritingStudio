@@ -31,6 +31,9 @@ interface ChatEntry {
   createdAt: string;
   attachments?: ChatAttachment[];
   proposal?: ManuscriptProposal;
+  // Session-only: the reply was cut off, so the writer gets a visible warning
+  // instead of silently losing the rest of the draft.
+  truncated?: boolean;
 }
 
 const chatKey = (projectId: string) => `lillith:ai-chat:v1:${projectId}`;
@@ -131,7 +134,7 @@ export function AiPanel({ workflow, context, proposal, decision, onDecision, mod
 
   useEffect(() => {
     if (!chatLoaded) return;
-    const persistent=chatEntries.map(entry=>({...entry,proposal:undefined,attachments:entry.attachments?.map(({dataUrl:_,text:__,...attachment})=>attachment)}));
+    const persistent=chatEntries.map(entry=>({...entry,proposal:undefined,truncated:undefined,attachments:entry.attachments?.map(({dataUrl:_,text:__,...attachment})=>attachment)}));
     localStorage.setItem(storedKey, JSON.stringify(persistent));
   }, [chatEntries, chatLoaded, storedKey]);
 
@@ -179,6 +182,7 @@ export function AiPanel({ workflow, context, proposal, decision, onDecision, mod
           content: response.text,
           createdAt: new Date().toISOString(),
           proposal: response.proposal ?? undefined,
+          truncated: response.truncated ?? undefined,
         },
       ]);
       setChatUsage({ inputTokens: response.inputTokens, outputTokens: response.outputTokens });
@@ -272,7 +276,7 @@ export function AiPanel({ workflow, context, proposal, decision, onDecision, mod
   if(onKeepText){return <div className="lillith-chat-simple">
     <header className="lillith-chat-header"><div className="lillith-avatar">L</div><div><strong>Lillith</strong><small>{execution?`${execution.provider.label} · ${execution.model}`:"Configure a model to begin"}</small></div><button type="button" className="keep-in-manuscript" onClick={keepChatSelection} title="Append the text you've highlighted in the chat to the manuscript"><Check size={14}/> Keep in manuscript</button></header>
     <div className="chat-transcript" ref={transcriptRef}>
-      {chatEntries.map(entry=><article key={entry.id} className={`chat-message ${entry.role}`}><span>{entry.role==="user"?"You":"Lillith"}</span><p>{entry.content}</p>{entry.attachments?.length?<div className="message-attachments">{entry.attachments.map(item=><span key={`${entry.id}-${item.name}`}>{item.mimeType.startsWith("image/")?<ImageIcon size={12}/>:<FileText size={12}/>} {item.name}</span>)}</div>:null}{entry.role==="assistant"&&entry.proposal?<div className="manuscript-proposal" role="group" aria-label="Manuscript proposal"><div className="proposal-label"><Sparkles size={13}/> Lillith wants to add this to your manuscript</div><div className="proposal-preview">{entry.proposal.text}</div><div className="proposal-actions"><button type="button" className="proposal-approve" onClick={()=>approveProposal(entry.id)}><Check size={13}/> Approve</button><button type="button" className="proposal-discard" onClick={()=>discardProposal(entry.id)}><X size={13}/> Discard</button></div></div>:null}</article>)}
+      {chatEntries.map(entry=><article key={entry.id} className={`chat-message ${entry.role}`}><span>{entry.role==="user"?"You":"Lillith"}</span><p>{entry.content}</p>{entry.role==="assistant"&&entry.truncated?<p className="chat-truncated-note" role="status">This reply was cut off — ask Lillith to continue it.</p>:null}{entry.attachments?.length?<div className="message-attachments">{entry.attachments.map(item=><span key={`${entry.id}-${item.name}`}>{item.mimeType.startsWith("image/")?<ImageIcon size={12}/>:<FileText size={12}/>} {item.name}</span>)}</div>:null}{entry.role==="assistant"&&entry.proposal?<div className="manuscript-proposal" role="group" aria-label="Manuscript proposal"><div className="proposal-label"><Sparkles size={13}/> Lillith wants to add this to your manuscript</div><div className="proposal-preview">{entry.proposal.text}</div><div className="proposal-actions"><button type="button" className="proposal-approve" onClick={()=>approveProposal(entry.id)}><Check size={13}/> Approve</button><button type="button" className="proposal-discard" onClick={()=>discardProposal(entry.id)}><X size={13}/> Discard</button></div></div>:null}</article>)}
       {sending&&<div className="lillith-typing"><i/><i/><i/><span>Lillith is thinking…</span></div>}
     </div>
     {keepHint&&<div className="keep-hint" role="status">{keepHint}</div>}
@@ -340,6 +344,7 @@ export function AiPanel({ workflow, context, proposal, decision, onDecision, mod
               <article key={entry.id} className={`chat-message ${entry.role}`}>
                 <span>{entry.role === "user" ? "You" : "Lillith"}</span>
                 <p>{entry.content}</p>
+                {entry.role === "assistant" && entry.truncated && <p className="chat-truncated-note" role="status">This reply was cut off — ask Lillith to continue it.</p>}
               </article>
             ))}
           </div>

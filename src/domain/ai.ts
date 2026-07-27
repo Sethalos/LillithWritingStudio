@@ -68,6 +68,8 @@ export interface ManuscriptProposal {
 export interface ChatResponse {
   text: string;
   proposal?: ManuscriptProposal;
+  // The reply hit the output cap mid-JSON; only salvaged prose reached the writer.
+  truncated?: boolean;
   inputTokens?: number;
   outputTokens?: number;
 }

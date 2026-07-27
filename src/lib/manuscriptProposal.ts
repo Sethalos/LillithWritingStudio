@@ -60,14 +60,18 @@ export function parseAssistantMessage(raw: string): ParsedAssistantMessage {
     .replace(/\s*```$/i, "")
     .trim();
   if (cleaned.startsWith("{")) {
+    let parsed: Record<string, unknown> | undefined;
     try {
-      const json = JSON.parse(cleaned) as Record<string, unknown>;
-      const text = typeof json.text === "string" ? json.text.trim() : "";
-      if (text) return { text, proposal: validateProposal(json.proposal), truncated: false };
+      parsed = JSON.parse(cleaned) as Record<string, unknown>;
     } catch {
-      const salvaged = salvageText(cleaned);
-      if (salvaged) return { text: salvaged, proposal: null, truncated: true };
+      parsed = undefined;
     }
+    const text = parsed && typeof parsed.text === "string" ? parsed.text.trim() : "";
+    if (text) return { text, proposal: validateProposal(parsed?.proposal), truncated: false };
+    // No usable `text` — whether the JSON was cut off or simply shaped differently,
+    // salvaging beats dumping raw JSON at the writer. Only a parse failure means truncation.
+    const salvaged = salvageText(cleaned);
+    if (salvaged) return { text: salvaged, proposal: null, truncated: parsed === undefined };
   }
   return { text: cleaned, proposal: null, truncated: false };
 }

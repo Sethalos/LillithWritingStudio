@@ -45,6 +45,22 @@ describe("parseAssistantMessage", () => {
     expect(result.proposal).toBeNull();
   });
 
+  it("salvages the text field when truncation left the ```json fence unclosed (matches the Rust parser)", () => {
+    const raw = '```json\n{"text":"Great starting mix. A pallid creature that';
+    const result = parseAssistantMessage(raw);
+    expect(result.text).toBe("Great starting mix. A pallid creature that");
+    expect(result.proposal).toBeNull();
+    expect(result.truncated).toBe(true);
+  });
+
+  it("salvages text from a valid reply that has no top-level text field (matches the Rust parser)", () => {
+    const raw = JSON.stringify({ reply: "Here you go", proposal: { action: "append", text: "The prose." } });
+    const result = parseAssistantMessage(raw);
+    expect(result.text).toBe("The prose.");
+    expect(result.proposal).toBeNull();
+    expect(result.truncated).toBe(false);
+  });
+
   it("salvages the text field from JSON cut off mid-string", () => {
     const raw = '{"text":"Great starting mix.\\n\\n### 1. Gazer Maw\\nA pallid creature that';
     const result = parseAssistantMessage(raw);

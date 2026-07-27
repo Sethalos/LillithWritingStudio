@@ -99,6 +99,41 @@ describe("ai workspace", () => {
     expect(onRun).toHaveBeenCalledWith("Strengthen character voice","direct-apply");
   });
 
+  it("warns in the chat when a reply was cut off mid-JSON", async () => {
+    localStorage.setItem(
+      "lillith:model-config:v1",
+      JSON.stringify({
+        providers: [
+          { id: "p1", kind: "openai-compatible", location: "local", label: "Local", baseUrl: "http://127.0.0.1:8080/v1", hasCredential: false, enabled: true, headers: {} },
+        ],
+        routes: [
+          { task: "brainstorm", label: "Brainstorming", description: "Ideas", providerId: "p1", modelId: "demo-model" },
+        ],
+      }),
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          choices: [{ message: { content: '```json\n{"text":"Great starting mix. A pallid creature that' } }],
+          usage: { prompt_tokens: 8, completion_tokens: 20 },
+        }),
+      } as Response)),
+    );
+
+    render(<AiPanel workflow={workflow} context={context} decision="pending" modelLabel="Local · demo-model" onDecision={() => undefined} onRun={() => undefined} running={false} selectedText="" onKeepText={vi.fn()} currentManuscript="" />);
+
+    fireEvent.change(screen.getByPlaceholderText(/message lillith/i), { target: { value: "Draft three monsters" } });
+    fireEvent.click(screen.getByRole("button", { name: /send message/i }));
+
+    await waitFor(() => expect(screen.getByText(/A pallid creature that/)).toBeVisible());
+    expect(screen.getByText(/this reply was cut off/i)).toBeVisible();
+    // The warning is session-only, like the proposal card.
+    expect(localStorage.getItem(`lillith:ai-chat:v1:${workflow.projectId}`)).not.toMatch(/truncated/);
+  });
+
   it("shows an append proposal card in the building chat and applies it on approve", async () => {
     localStorage.setItem(
       "lillith:model-config:v1",

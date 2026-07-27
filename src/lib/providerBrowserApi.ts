@@ -295,6 +295,7 @@ async function browserChat(
   return {
     text: parsed.text,
     proposal: parsed.proposal ?? undefined,
+    truncated: parsed.truncated,
     inputTokens: usage.inputTokens ?? estimateTokens(system + messages.map((message) => message.content).join("")),
     outputTokens: usage.outputTokens ?? estimateTokens(parsed.text),
   };
