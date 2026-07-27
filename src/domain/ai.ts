@@ -61,8 +61,13 @@ export interface ChatMessage {
   createdAt: string;
   attachments?: ChatAttachment[];
 }
+export interface ManuscriptProposal {
+  action: "append";
+  text: string;
+}
 export interface ChatResponse {
   text: string;
+  proposal?: ManuscriptProposal;
   inputTokens?: number;
   outputTokens?: number;
 }
