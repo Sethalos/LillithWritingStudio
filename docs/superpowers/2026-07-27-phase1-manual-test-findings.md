@@ -81,6 +81,49 @@ Lowest priority, purely visual. Not yet investigated.
 
 ---
 
+## Resolution (Plan A, 2026-07-27)
+
+Items 1–4 are fixed by the manuscript-tree-and-toolbar plan (14 commits, `db7f811..5773271`).
+Item 5 (missing cover artwork) is untouched and still open.
+
+The truncation fix needed two rounds. The first pass raised the token cap and taught both
+parsers to salvage prose from cut-off JSON — but a final whole-branch review found the
+desktop path still broken: `parse_chat_output`'s fence-stripping chain used
+`.strip_suffix("```").unwrap_or(raw.trim())`, and that fallback undid the prefix strip. With
+no closing fence — exactly what truncation produces — `cleaned` reverted to the fenced
+original, failed its `starts_with('{')` guard, and skipped the salvage entirely. The bug this
+work existed to kill was still live on the path the writer actually uses. The per-task
+reviews could not see it; only the whole-branch pass did.
+
+A related regression was caught in the same review: the system prompt directs drafted prose
+into `proposal.text`, so a long draft truncates *inside the proposal*. The salvage recovered
+only the short conversational `text` and returned no proposal — leaving a cheerful one-liner,
+no Approve card, and no warning, with the prose gone. Previously the writer at least saw raw
+JSON containing it. A `truncated` flag now threads from the Rust parser through to a visible
+"this reply was cut off" note on the message.
+
+## Known-live minor issues
+
+- **Spurious "Save conflict — reopen section".** Switching scenes while a debounced autosave
+  is still in flight issues a second write at the same revision, which the backend rejects.
+  No data loss — both writes carry identical text — but the banner is a false alarm.
+- **`parse_editor_output` still carries the old fence-chain shape** (`providers.rs:138`). A
+  complete editing proposal whose closing fence the model omitted is rejected rather than
+  parsed. One-line fix using the new `strip_code_fence` helper; was out of the fix wave's
+  scope.
+- **`.chat-truncated-note` loses its styling** to `.chat-message p` on specificity
+  (`styles.css:332` vs `:322`). The warning is legible, just not styled as intended.
+
+## Open decision: scenes cannot be renamed
+
+The tree creates scenes titled `"New scene"`, and there is no rename path anywhere in the
+app — `updateManuscriptMetadata` covers goal, word goal, tags, POV, type and location, but
+not `title`, and `EditorPane` renders `document.title` read-only. Rename and delete were
+deliberately deferred from Plan A because they need new Tauri commands and destructive vault
+file operations. Adding creation without rename means the tree fills with rows called
+"New scene", which is the opposite of the plan's stated purpose. The final reviewer
+recommends reopening that deferral before the tree sees real use.
+
 ## Checklist status
 
 - [x] 1. Draft request → conversational reply plus a proposal card
