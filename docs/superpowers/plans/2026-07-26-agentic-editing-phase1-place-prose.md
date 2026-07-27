@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status (2026-07-27):** Tasks 1–3 implemented and committed (`b373eea`, `a334706`, `d18ac0d`), plus a code-review consistency pass (`8514924`). Automated gates green: 51 vitest tests across 23 files, 65 cargo tests, `npm run build` clean. **Remaining:** the manual desktop verification below.
+
 **Goal:** Let Lillith (the building chat) propose *adding* drafted prose to the manuscript as an approve/discard card — never auto-applied.
 
 **Architecture:** The model returns a JSON reply with an optional `proposal: {action:"append", text}`. Both the desktop path (Rust `parse_chat_output`) and the browser path (TS `parseAssistantMessage`) validate it and surface `ChatResponse.proposal`. The building chat stores it on the assistant `ChatEntry` and renders a proposal card; **Approve** reuses the existing, git-reversible `keepChatText` append (via the `onKeepText` prop); **Discard** dismisses it. Nothing touches the manuscript without a click.
@@ -41,7 +43,7 @@
 **Interfaces:**
 - Produces: `interface ManuscriptProposal { action: "append"; text: string }` (in `src/domain/ai.ts`); `ChatResponse.proposal?: ManuscriptProposal`; `parseAssistantMessage(raw: string): { text: string; proposal: ManuscriptProposal | null }` (in `src/lib/manuscriptProposal.ts`).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `src/lib/manuscriptProposal.test.ts`:
 
@@ -88,12 +90,12 @@ describe("parseAssistantMessage", () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run src/lib/manuscriptProposal.test.ts`
 Expected: FAIL — cannot resolve `./manuscriptProposal`.
 
-- [ ] **Step 3: Add the type to `src/domain/ai.ts`**
+- [x] **Step 3: Add the type to `src/domain/ai.ts`**
 
 Find the existing `ChatResponse` interface:
 
@@ -120,7 +122,7 @@ export interface ChatResponse {
 }
 ```
 
-- [ ] **Step 4: Create `src/lib/manuscriptProposal.ts`**
+- [x] **Step 4: Create `src/lib/manuscriptProposal.ts`**
 
 ```ts
 import type { ManuscriptProposal } from "../domain/ai";
@@ -163,12 +165,12 @@ export function parseAssistantMessage(raw: string): ParsedAssistantMessage {
 }
 ```
 
-- [ ] **Step 5: Run test to verify it passes**
+- [x] **Step 5: Run test to verify it passes**
 
 Run: `npx vitest run src/lib/manuscriptProposal.test.ts`
 Expected: PASS (6 passing).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/domain/ai.ts src/lib/manuscriptProposal.ts src/lib/manuscriptProposal.test.ts
@@ -187,7 +189,7 @@ git commit -m "$(printf 'Add manuscript append-proposal type and parser\n\nCo-Au
 - Consumes: the chat JSON contract (`{text, proposal:{action,text}}`).
 - Produces: `ChatOutput.proposal: Option<ManuscriptProposal>` where `ManuscriptProposal { action: String, text: String }`, serialized camelCase into the `run_ai_chat` result as `proposal`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 In `src-tauri/src/providers.rs`, inside `mod tests { ... }` (starts at the `mod tests` line), add these four tests next to the existing `parses_chat_output_as_plain_text` test:
 
@@ -202,12 +204,12 @@ In `src-tauri/src/providers.rs`, inside `mod tests { ... }` (starts at the `mod 
     fn plain_text_reply_has_no_proposal(){let output=parse_chat_output("Just thinking out loud.").unwrap();assert_eq!(output.text,"Just thinking out loud.");assert!(output.proposal.is_none());}
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml --offline parses_append_proposal ignores_unsupported_proposal_action ignores_empty_proposal_text plain_text_reply_has_no_proposal`
 Expected: FAIL to compile — `ChatOutput` has no field `proposal`.
 
-- [ ] **Step 3: Add the `ManuscriptProposal` struct and the `proposal` field**
+- [x] **Step 3: Add the `ManuscriptProposal` struct and the `proposal` field**
 
 In `src-tauri/src/providers.rs`, find:
 
@@ -236,7 +238,7 @@ pub struct ChatOutput {
 }
 ```
 
-- [ ] **Step 4: Update `parse_chat_output` to extract the proposal**
+- [x] **Step 4: Update `parse_chat_output` to extract the proposal**
 
 In `src-tauri/src/providers.rs`, replace the whole `parse_chat_output` function (currently one line) with:
 
@@ -245,12 +247,12 @@ fn parse_manuscript_proposal(value:&Value)->Option<ManuscriptProposal>{let actio
 fn parse_chat_output(raw:&str)->Result<ChatOutput,String>{let cleaned=raw.trim().strip_prefix("```json").or_else(||raw.trim().strip_prefix("```")).unwrap_or(raw.trim()).strip_suffix("```").unwrap_or(raw.trim()).trim();if cleaned.is_empty(){return Err("The model returned an empty response".into())}if let Ok(json)=serde_json::from_str::<Value>(cleaned){if let Some(text)=json.get("text").and_then(Value::as_str){if !text.trim().is_empty(){let proposal=json.get("proposal").and_then(parse_manuscript_proposal);return Ok(ChatOutput{text:text.trim().to_string(),proposal})}}}Ok(ChatOutput{text:cleaned.to_string(),proposal:None})}
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml --offline parses_append_proposal ignores_unsupported_proposal_action ignores_empty_proposal_text plain_text_reply_has_no_proposal`
 Expected: PASS (4 passing). Also run the existing suite to confirm no regression: `cargo test --manifest-path src-tauri/Cargo.toml --offline parse_chat_output` — the existing `parses_chat_output_as_plain_text` still passes.
 
-- [ ] **Step 6: Map the proposal into the `run_ai_chat` result**
+- [x] **Step 6: Map the proposal into the `run_ai_chat` result**
 
 In `src-tauri/src/lib.rs`, find the `run_ai_chat` result line (~215):
 
@@ -264,12 +266,12 @@ Replace with:
 Ok(serde_json::json!({"text":generated.output.text,"proposal":generated.output.proposal,"inputTokens":generated.input_tokens,"outputTokens":generated.output_tokens}))
 ```
 
-- [ ] **Step 7: Verify the desktop crate still compiles**
+- [x] **Step 7: Verify the desktop crate still compiles**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml --offline --no-run`
 Expected: builds with no errors.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src-tauri/src/providers.rs src-tauri/src/lib.rs
@@ -290,7 +292,7 @@ git commit -m "$(printf 'Parse manuscript append-proposal on the desktop chat pa
 - Consumes: `parseAssistantMessage` (Task 1); `ChatResponse.proposal` (Task 1); the existing `onKeepText?: (text:string)=>void` prop (the safe append).
 - Produces: a proposal card rendered under an assistant message when `entry.proposal` is set; `approveProposal(entryId)` / `discardProposal(entryId)` handlers.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 In `src/components/AiPanel.test.tsx`, add this test inside the `describe("ai workspace", ...)` block (after the last `it`):
 
@@ -334,12 +336,12 @@ In `src/components/AiPanel.test.tsx`, add this test inside the `describe("ai wor
   });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run src/components/AiPanel.test.tsx`
 Expected: FAIL — no "wants to add this to your manuscript" text (card not implemented; the browser path also does not yet surface a proposal).
 
-- [ ] **Step 3: Surface the proposal from the browser chat path**
+- [x] **Step 3: Surface the proposal from the browser chat path**
 
 In `src/lib/providerBrowserApi.ts`, add the import near the top (with the other `./` imports):
 
@@ -377,7 +379,7 @@ Replace with:
   };
 ```
 
-- [ ] **Step 4: Carry the proposal on the assistant chat entry**
+- [x] **Step 4: Carry the proposal on the assistant chat entry**
 
 In `src/components/AiPanel.tsx`, add `ManuscriptProposal` to the domain import. Find:
 
@@ -416,7 +418,7 @@ interface ChatEntry {
 }
 ```
 
-- [ ] **Step 5: Store the proposal when the reply arrives**
+- [x] **Step 5: Store the proposal when the reply arrives**
 
 In `src/components/AiPanel.tsx`, inside `sendChat`, find:
 
@@ -447,7 +449,7 @@ Replace with:
       ]);
 ```
 
-- [ ] **Step 6: Add the approve/discard handlers**
+- [x] **Step 6: Add the approve/discard handlers**
 
 In `src/components/AiPanel.tsx`, immediately after the `keepChatSelection` function (it ends with `setKeepHint("");\n  };`), add:
 
@@ -464,7 +466,7 @@ In `src/components/AiPanel.tsx`, immediately after the `keepChatSelection` funct
   };
 ```
 
-- [ ] **Step 7: Render the proposal card**
+- [x] **Step 7: Render the proposal card**
 
 In `src/components/AiPanel.tsx`, inside the `if(onKeepText){return ...}` building-chat block, find the transcript `map` line and its end `:null}</article>)}`. Replace:
 
@@ -478,7 +480,7 @@ with:
 :null}{entry.role==="assistant"&&entry.proposal?<div className="manuscript-proposal" role="group" aria-label="Manuscript proposal"><div className="proposal-label"><Sparkles size={13}/> Lillith wants to add this to your manuscript</div><div className="proposal-preview">{entry.proposal.text}</div><div className="proposal-actions"><button type="button" className="proposal-approve" onClick={()=>approveProposal(entry.id)}><Check size={13}/> Approve</button><button type="button" className="proposal-discard" onClick={()=>discardProposal(entry.id)}><X size={13}/> Discard</button></div></div>:null}</article>)}
 ```
 
-- [ ] **Step 8: Keep proposals out of persisted history**
+- [x] **Step 8: Keep proposals out of persisted history**
 
 In `src/components/AiPanel.tsx`, find the persist mapping (in the `useEffect` that writes `storedKey`):
 
@@ -492,12 +494,12 @@ Replace with:
     const persistent=chatEntries.map(entry=>({...entry,proposal:undefined,attachments:entry.attachments?.map(({dataUrl:_,text:__,...attachment})=>attachment)}));
 ```
 
-- [ ] **Step 9: Run the component test to verify it passes**
+- [x] **Step 9: Run the component test to verify it passes**
 
 Run: `npx vitest run src/components/AiPanel.test.tsx`
 Expected: PASS (all tests, including the new proposal-card test).
 
-- [ ] **Step 10: Add the system-prompt contract (manual-verified)**
+- [x] **Step 10: Add the system-prompt contract (manual-verified)**
 
 In `src/components/AiPanel.tsx`, in `buildSystemPrompt`, find the line:
 
@@ -511,7 +513,7 @@ Insert immediately after it:
     "Reply with a single JSON object. Always include a \"text\" field with your conversational message to the writer. ONLY when the writer has asked you to write or draft new prose to add to the manuscript, also include a \"proposal\" object: {\"action\":\"append\",\"text\":\"<the prose to add>\"}. Put that prose in proposal.text, not in text. Never include a proposal when brainstorming, outlining, discussing, or answering questions, and never invent a proposal the writer did not ask for.",
 ```
 
-- [ ] **Step 11: Add the card styles**
+- [x] **Step 11: Add the card styles**
 
 In `src/styles.css`, immediately after the `.keep-hint { ... }` rule (added in the prior keep-in-manuscript work), add:
 
@@ -524,12 +526,12 @@ In `src/styles.css`, immediately after the `.keep-hint { ... }` rule (added in t
 .manuscript-proposal .proposal-discard { display:flex; align-items:center; gap:5px; border:1px solid #5a4a34; border-radius:8px; background:transparent; color:#c9b48f; padding:6px 11px; font-size:11px; cursor:pointer; }
 ```
 
-- [ ] **Step 12: Full build gate**
+- [x] **Step 12: Full build gate**
 
 Run: `npm run build`
 Expected: tsc + vite build succeed with no errors.
 
-- [ ] **Step 13: Commit**
+- [x] **Step 13: Commit**
 
 ```bash
 git add src/lib/providerBrowserApi.ts src/components/AiPanel.tsx src/components/AiPanel.test.tsx src/styles.css
@@ -542,11 +544,13 @@ git commit -m "$(printf 'Add building-chat append-proposal card (propose, approv
 
 Run `npm run tauri dev`, open a vault project, land in the manuscript view with Lillith's chat, then:
 
-1. Ask Lillith to "draft the opening paragraph" → she replies conversationally **and** a card appears: "Lillith wants to add this to your manuscript" with the prose preview.
-2. Click **Approve** → the prose appends to the manuscript (same behavior as Keep); the card disappears.
-3. Ask her a discussion question (no prose request) → reply appears with **no** card.
-4. Ask her to draft something, then click **Discard** → nothing is added; the card disappears.
-5. Undo check: after an Approve, the pre-append state is recoverable from **History**.
+- [ ] 1. Ask Lillith to "draft the opening paragraph" → she replies conversationally **and** a card appears: "Lillith wants to add this to your manuscript" with the prose preview.
+- [ ] 2. Click **Approve** → the prose appends to the manuscript (same behavior as Keep); the card disappears.
+- [ ] 3. Ask her a discussion question (no prose request) → reply appears with **no** card.
+- [ ] 4. Ask her to draft something, then click **Discard** → nothing is added; the card disappears.
+- [ ] 5. Undo check: after an Approve, the pre-append state is recoverable from **History**.
+
+**Known risk to watch for in step 3:** the JSON-reply contract in `buildSystemPrompt` now applies to *every* building-chat turn. If a model ignores it and answers in prose, the parsers fall through to plain text (covered by tests), but a model that wraps a normal chat answer in a stray `proposal` would show a spurious card. Note which model/route you test with.
 
 ## Out of scope (later phases)
 
