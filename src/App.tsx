@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState, type MouseEvent a
 import { ArrowRight, ChevronDown, CircleHelp, Search, Settings, ShieldCheck } from "lucide-react";
 import { Binder } from "./components/Binder";
 import { EditorPane } from "./components/EditorPane";
+import { ManuscriptTree } from "./components/ManuscriptTree";
 import { AiPanel } from "./components/AiPanel";
 import { WorkflowDashboard } from "./components/WorkflowDashboard";
 import type { CommentSelection } from "./components/CommentsPanel";
@@ -87,7 +88,7 @@ export function App() {
     };
   }, [project, nodes, characters]);
   const useWorkspace = async (workspace: WorkspaceData) => { setProject(workspace.project); setNodes(workspace.nodes); saveCurrentWorkspace(workspace); setMemoryActivities(loadMemoryActivities(workspace.project.id)); const firstScene = workspace.nodes.find((node) => node.kind === "scene"); if (firstScene) setActiveId(firstScene.id); const loaded = await loadCharacters(workspace.project.id); setCharacters(loaded); setSelectedCharacterId(loaded[0]?.id ?? ""); setActiveProposal(undefined); setSelectedText(""); setActiveContext({version:"1",id:crypto.randomUUID(),projectId:workspace.project.id,task:"prose-rewrite",target:{documentId:firstScene?.id??""},items:[],exclusions:[],estimatedInputTokens:0,tokenBudget:12000,assembledAt:new Date().toISOString(),assemblerVersion:"1.0.0"}); setEditorModel("No editor model configured"); setSaveState(`Opened ${workspace.project.title || "current project"}`); setInspector("dashboard"); setShowLauncher(false); };
-  const createNode = async (kind: "chapter" | "scene", title: string) => { const activeChapter = active.kind === "scene" ? active.parentId : active.kind === "chapter" ? active.id : undefined; const parentId = kind === "chapter" ? nodes.find((node) => node.kind === "book")?.id : activeChapter ?? nodes.find((node) => node.kind === "chapter")?.id; if (!parentId) throw new Error(`Create a ${kind === "scene" ? "chapter" : "book"} first.`); const node = await createManuscriptNode(parentId, kind, title, project.id); setNodes((all) => [...all, node]); if (kind === "scene") setActiveId(node.id); };
+  const createNode = async (kind: "chapter" | "scene", title: string, explicitParentId?: string) => { const activeChapter = active.kind === "scene" ? active.parentId : active.kind === "chapter" ? active.id : undefined; const parentId = explicitParentId ?? (kind === "chapter" ? nodes.find((node) => node.kind === "book")?.id : activeChapter ?? nodes.find((node) => node.kind === "chapter")?.id); if (!parentId) throw new Error(`Create a ${kind === "scene" ? "chapter" : "book"} first.`); const node = await createManuscriptNode(parentId, kind, title, project.id); setNodes((all) => [...all, node]); if (kind === "scene") setActiveId(node.id); };
   const startComment=async(selection:CommentSelection)=>{try{if(content!==lastSaved.current){setSaveState("Saving…");const revision=await saveDocument(active,content);lastSaved.current=content;setNodes(all=>all.map(node=>node.id===active.id?{...node,content,revision}:node));setSaveState("Saved locally")}setCommentSelection(selection);setInspector("comments")}catch(error){setSaveState("Save needs attention");setAiError(String(error))}};
   const saveWorkflow = async (next: WorkflowState) => {
     setWorkflow(next);
@@ -173,6 +174,14 @@ export function App() {
       }}
       onResumeManuscript={resumeManuscript}
     />
+    {inspector === "manuscript" && (
+      <ManuscriptTree
+        nodes={nodes}
+        activeId={active.id}
+        onSelect={setActiveId}
+        onCreate={(kind, parentId) => { void createNode(kind, kind === "scene" ? "New scene" : "New chapter", parentId).catch((error) => setAiError(String(error))); }}
+      />
+    )}
     <section className="workspace">
       <header className="topbar">
         <button className="topbar-project" onClick={() => setShowLauncher(true)}>

@@ -4,6 +4,7 @@
 body { margin:0; min-width:1024px; min-height:720px; overflow:auto; background:#1a130b; }
 button { font:inherit; color:inherit; }
 .app-frame { display:grid; grid-template-columns:218px 1fr; height:100vh; overflow:hidden; background:#1a130b; color:#f3ede1; }
+.app-frame:has(.manuscript-tree) { grid-template-columns:218px 232px 1fr; }
 .panel { background:#1e1610; color:#d9d3c9; }
 .binder { display:flex; flex-direction:column; border-right:1px solid #1b232d; background:linear-gradient(180deg,#0f161d,#1e1610); overflow:hidden; }
 .binder-scroll { flex:1; min-height:0; overflow:auto; display:flex; flex-direction:column; padding-bottom:8px; scrollbar-gutter:stable; }
@@ -557,7 +558,7 @@ button { font:inherit; color:inherit; }
 .pipeline-progress>i { display:block; height:4px; margin-top:5px; overflow:hidden; border-radius:4px; background:#ded7cf; }
 .pipeline-progress>i>b { display:block; height:100%; border-radius:4px; background:#79505a; transition:width .25s ease; }
 .pipeline-error { margin:6px 0 0; color:#914f55; font-size:6.5px; line-height:1.4; }
-.editor-panes { flex:1; min-height:0; display:grid; grid-template-columns:1fr; overflow:hidden; }.editor-shell.split-mode .editor-panes { grid-template-columns:1fr 1fr; }.editor-panes>.paper { min-width:0; }.secondary-paper { position:relative; border-left:1px solid #382c1d; }.split-label { position:sticky; top:-25px; z-index:2; margin:-30px 0 9px; color:#a5977f; font-size:10px; letter-spacing:.12em; }.app-frame:has(.editor-shell.focus-mode) { grid-template-columns:1fr; }.app-frame:has(.editor-shell.focus-mode)>.binder { display:none; }.app-frame:has(.editor-shell.focus-mode) .work-area { grid-template-columns:minmax(0,1fr); }.app-frame:has(.editor-shell.focus-mode) .inspector { display:none; }.app-frame:has(.editor-shell.focus-mode) .editor-shell { max-width:1100px; width:100%; margin:0 auto; box-shadow:0 0 40px #00000044; }.app-frame:has(.editor-shell.focus-mode) .paper { padding-inline:max(35px,calc((100% - 760px)/2)); }.app-frame:has(.editor-shell.focus-mode) .split-mode .paper { padding-inline:28px; }
+.editor-panes { flex:1; min-height:0; display:grid; grid-template-columns:1fr; overflow:hidden; }.editor-shell.split-mode .editor-panes { grid-template-columns:1fr 1fr; }.editor-panes>.paper { min-width:0; }.secondary-paper { position:relative; border-left:1px solid #382c1d; }.split-label { position:sticky; top:-25px; z-index:2; margin:-30px 0 9px; color:#a5977f; font-size:10px; letter-spacing:.12em; }.app-frame:has(.editor-shell.focus-mode) { grid-template-columns:1fr; }.app-frame:has(.editor-shell.focus-mode)>.binder,.app-frame:has(.editor-shell.focus-mode)>.manuscript-tree { display:none; }.app-frame:has(.editor-shell.focus-mode) .work-area { grid-template-columns:minmax(0,1fr); }.app-frame:has(.editor-shell.focus-mode) .inspector { display:none; }.app-frame:has(.editor-shell.focus-mode) .editor-shell { max-width:1100px; width:100%; margin:0 auto; box-shadow:0 0 40px #00000044; }.app-frame:has(.editor-shell.focus-mode) .paper { padding-inline:max(35px,calc((100% - 760px)/2)); }.app-frame:has(.editor-shell.focus-mode) .split-mode .paper { padding-inline:28px; }
 .drag-grip { flex:none; color:#756c69; opacity:.2; cursor:grab; }.tree-chapter:hover .drag-grip,.tree-scene:hover .drag-grip { opacity:.8; }.tree-scene.drop-target,.tree-group.drop-target>.tree-chapter { box-shadow:inset 0 2px #c46a85; background:#372c34; }.binder-error { margin:5px 9px; padding:6px 7px; border:1px solid #7e4856; border-radius:4px; color:#efbecb; background:#3d2830; font-size:8px; line-height:1.4; }
 .proposal-history { width:100%; border:0; background:transparent; text-align:left; }
 .proposal-history.active { background:#fff; box-shadow:inset 2px 0 #794954; }
@@ -802,4 +803,34 @@ select option { color:#efe6d4; background:#141c24; }
 .workflow-open-stage { justify-self:end; display:flex; align-items:center; gap:8px; border:1px solid #e5a038; border-radius:9px; padding:11px 14px; color:#181108; background:#e5a038; font-weight:700; }.workflow-idea-editor label { display:block; margin-bottom:6px; color:#e8b867; font-size:11px; }.workflow-idea-editor textarea { width:100%; min-height:115px; resize:vertical; border:1px solid #344956; border-radius:9px; padding:11px; color:#edf4f8; background:#09141b; font-size:12px; line-height:1.55; }
 .workflow-guidance { margin-top:16px; display:flex; align-items:center; gap:11px; padding:14px 16px; border:1px solid #3b4854; border-radius:12px; color:#ddb15e; background:#111a22; }.workflow-guidance div { flex:1; }.workflow-guidance strong { color:#eef3f6; font-size:12px; }.workflow-guidance p { margin:3px 0 0; color:#aebac4; font-size:11px; }.workflow-guidance button { display:flex; align-items:center; gap:6px; border:1px solid #536777; border-radius:7px; padding:8px 10px; color:#e8eef2; background:#172630; }
 .current-stage-summary { min-height:160px; }.current-stage-note { justify-self:end; max-width:280px; padding:12px 14px; border:1px solid #30424e; border-radius:9px; color:#aebbc5; background:#0b151b; font-size:11px; line-height:1.55; }
+
+/* Manuscript tree */
+.manuscript-tree { display:flex; flex-direction:column; min-height:0; overflow:hidden; border-right:1px solid #382c1d; background:linear-gradient(180deg,#12191f,#1a130b); }
+.tree-header { flex:none; display:flex; align-items:flex-start; justify-content:space-between; gap:8px; min-height:42px; padding:8px 10px 8px 14px; border-bottom:1px solid #382c1d; color:#8e98a3; }
+.tree-header-info { flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; }
+.tree-header-label { display:block; font-size:9px; letter-spacing:.16em; text-transform:uppercase; font-weight:600; color:#8e98a3; }
+.tree-header-book { display:flex; align-items:baseline; gap:6px; min-width:0; }
+.tree-header-book-title { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:600 12px "Libre Caslon Text"; text-transform:none; letter-spacing:0; color:#f0e6d6; }
+.tree-header-book-words { flex:none; font-size:9px; letter-spacing:0; text-transform:none; font-variant-numeric:tabular-nums; color:#7d8894; }
+.tree-header button { flex:none; border:0; background:transparent; color:#c79543; cursor:pointer; display:grid; place-items:center; width:22px; height:22px; border-radius:4px; }
+.tree-header button:hover:not(:disabled) { background:#241a0e; }
+.tree-header button:disabled { opacity:.35; cursor:default; }
+.tree-scroll { flex:1; min-height:0; overflow:auto; padding:6px 0 12px; scrollbar-gutter:stable; }
+.manuscript-tree ul { list-style:none; margin:0; padding:0; }
+.tree-row { display:flex; align-items:center; gap:2px; padding-right:6px; height:26px; }
+.tree-row:hover { background:#1b232d; }
+.tree-row.current { background:#241a0e; box-shadow:inset 2px 0 0 #c98f34; }
+.tree-twisty { flex:none; width:16px; height:16px; display:grid; place-items:center; border:0; background:transparent; color:#7d8894; cursor:pointer; padding:0; }
+.tree-label { flex:1; min-width:0; display:flex; align-items:center; gap:6px; border:0; background:transparent; color:#d9d0c2; font-size:11px; text-align:left; cursor:pointer; padding:0; overflow:hidden; }
+.tree-label span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tree-row.current .tree-label { color:#f5e9d4; }
+.tree-words { flex:none; color:#7d8894; font-size:9px; font-variant-numeric:tabular-nums; }
+.tree-menu-toggle { flex:none; width:18px; height:18px; display:grid; place-items:center; border:0; background:transparent; color:#7d8894; cursor:pointer; padding:0; border-radius:3px; }
+.tree-menu-toggle:hover { background:#2a3540; color:#f0e6d6; }
+.tree-menu { margin:2px 8px 4px 30px; border:1px solid #4a3a26; border-radius:6px; background:#1d1509; overflow:hidden; }
+.tree-menu button { display:block; width:100%; border:0; background:transparent; color:#d9d0c2; font-size:11px; text-align:left; padding:6px 10px; cursor:pointer; }
+.tree-menu button:hover { background:#2a1f10; color:#f5e9d4; }
+.tree-empty { margin:14px; color:#7d8894; font-size:11px; line-height:1.5; }
+@media (max-width:1400px) { .app-frame:has(.manuscript-tree) { grid-template-columns:205px 208px 1fr; } }
+@media (max-width:1100px) { .app-frame:has(.manuscript-tree) { grid-template-columns:205px 1fr; } .manuscript-tree { display:none; } }
 @media(max-width:1200px){.workflow-path{grid-template-columns:repeat(4,minmax(130px,1fr));gap:10px}.workflow-connector{display:none}.workflow-stage-detail{grid-template-columns:1fr}.workflow-open-stage{justify-self:start}}
