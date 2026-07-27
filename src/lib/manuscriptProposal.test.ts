@@ -58,6 +58,11 @@ describe("parseAssistantMessage", () => {
     expect(parseAssistantMessage(raw).text).toBe('She said "no" and left the');
   });
 
+  it("decodes \\uXXXX escapes while salvaging (parity with the Rust parser)", () => {
+    const raw = '{"text":"She said \\u201cHello';
+    expect(parseAssistantMessage(raw).text).toBe("She said “Hello");
+  });
+
   it("marks complete replies as not truncated", () => {
     const raw = JSON.stringify({ text: "All done." });
     const result = parseAssistantMessage(raw);
