@@ -763,23 +763,43 @@ In `src/components/EditorPane.tsx`, immediately after the `useEffect` that persi
 
 - [ ] **Step 6: Write the failing test**
 
+jsdom does not load `src/styles.css`, so `toBeVisible()` cannot detect the `display:none` rule — those assertions would pass identically before and after this task and verify nothing. Test the two things that can actually fail: the DOM move, and the stylesheet rule itself.
+
 Create `src/components/editorToolbar.test.tsx`:
 
 ```tsx
-import { render, screen } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { EditorPane } from "./EditorPane";
 import type { ManuscriptNode } from "../domain/models";
 
 const document: ManuscriptNode = { id: "s1", projectId: "p1", kind: "scene", title: "Station XII", position: 0, wordCount: 0, revision: 0, updatedAt: "2026-07-27T00:00:00Z", content: "<p>The door opened.</p>" };
 
+const renderPane = () =>
+  render(<EditorPane document={document} content="<p>The door opened.</p>" characters={[]} onChange={() => undefined} onAi={() => undefined} onComment={() => undefined} onMetadata={async () => undefined} embeddedAi={<div>chat</div>} />);
+
 describe("editor toolbar with the AI dock mounted", () => {
-  it("keeps the formatting tools reachable", () => {
-    render(<EditorPane document={document} content="<p>The door opened.</p>" characters={[]} onChange={() => undefined} onAi={() => undefined} onComment={() => undefined} onMetadata={async () => undefined} embeddedAi={<div>chat</div>} />);
-    expect(screen.getByRole("button", { name: /^bold$/i })).toBeVisible();
-    expect(screen.getByRole("button", { name: /^italic$/i })).toBeVisible();
-    expect(screen.getByRole("button", { name: /^underline$/i })).toBeVisible();
-    expect(screen.getByRole("button", { name: /find and replace/i })).toBeVisible();
+  it("puts Underline in the toolbar row rather than floating it over the prose", () => {
+    const { container } = renderPane();
+    const toolbar = container.querySelector(".toolbar");
+    expect(toolbar).not.toBeNull();
+    expect(within(toolbar as HTMLElement).getByRole("button", { name: /^underline$/i })).toBeInTheDocument();
+    expect(container.querySelector(".manuscript-column > .underline-tool")).toBeNull();
+  });
+
+  it("keeps the formatting tools in the toolbar", () => {
+    const { container } = renderPane();
+    const toolbar = within(container.querySelector(".toolbar") as HTMLElement);
+    expect(toolbar.getByRole("button", { name: /^bold$/i })).toBeInTheDocument();
+    expect(toolbar.getByRole("button", { name: /^italic$/i })).toBeInTheDocument();
+    expect(toolbar.getByRole("button", { name: /find and replace/i })).toBeInTheDocument();
+  });
+
+  it("no longer hides the toolbar when the AI dock is mounted", () => {
+    const css = readFileSync("src/styles.css", "utf8");
+    expect(css).not.toMatch(/with-ai-dock\s+\.toolbar\s*,/);
+    expect(css).not.toMatch(/with-ai-dock\s+\.toolbar\s*\{[^}]*display\s*:\s*none/);
   });
 });
 ```
@@ -787,7 +807,7 @@ describe("editor toolbar with the AI dock mounted", () => {
 - [ ] **Step 7: Run the test**
 
 Run: `npx vitest run src/components/editorToolbar.test.tsx`
-Expected: PASS — the buttons render once Underline is inside the toolbar. (If Step 3 was missed, the underline assertion fails.)
+Expected: PASS (3 tests). If Step 1 was missed the stylesheet test fails; if Step 3 was missed the Underline test fails.
 
 - [ ] **Step 8: Run all gates**
 
