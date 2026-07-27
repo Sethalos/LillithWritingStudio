@@ -34,5 +34,5 @@ export function parseAssistantMessage(raw: string): ParsedAssistantMessage {
       // fall through to plain-text handling
     }
   }
-  return { text: raw.trim(), proposal: null };
+  return { text: cleaned, proposal: null };
 }

@@ -70,7 +70,7 @@ pub struct ManuscriptProposal {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ChatOutput {
     pub text: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub proposal: Option<ManuscriptProposal>,
 }
 

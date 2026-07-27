@@ -290,6 +290,7 @@ async function browserChat(
   const raw = responseText(payload, kind);
   if (!raw) throw new Error("Provider returned no chat content.");
   const parsed = parseAssistantMessage(raw);
+  if (!parsed.text) throw new Error("Provider returned no chat content.");
   const usage = usageCounts(payload, kind);
   return {
     text: parsed.text,

@@ -37,4 +37,10 @@ describe("parseAssistantMessage", () => {
     expect(result.text).toBe('{"text":"broken');
     expect(result.proposal).toBeNull();
   });
+
+  it("returns the fence-stripped text when a fenced body is not valid JSON (matches the Rust parser)", () => {
+    const result = parseAssistantMessage("```json\n{broken\n```");
+    expect(result.text).toBe("{broken");
+    expect(result.proposal).toBeNull();
+  });
 });
