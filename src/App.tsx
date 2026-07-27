@@ -74,7 +74,37 @@ export function App() {
   const [commentSelection,setCommentSelection]=useState<CommentSelection>();
   const [commentAnchorText,setCommentAnchorText]=useState<string>();
   const lastSaved = useRef(content);
-  useEffect(() => { const next = loadLocalDocument(active); setContent(next); lastSaved.current = next; }, [active.id]);
+  // `content` belongs to `openId.current`, not necessarily to `active`: when the
+  // writer switches scenes, the render that brings in the new `active` still
+  // carries the outgoing scene's text. These refs let the swap effect below flush
+  // that text before it is replaced. `nodes` is read through a ref so the flush
+  // always writes against the freshest revision rather than a stale closure.
+  const contentRef = useRef(content);
+  const nodesRef = useRef(nodes);
+  const openId = useRef(active.id);
+  contentRef.current = content;
+  nodesRef.current = nodes;
+  useEffect(() => {
+    const previousId = openId.current;
+    const pending = contentRef.current;
+    // Autosave is debounced by 700ms; switching scenes inside that window used to
+    // clear the timer and then overwrite `content`, losing the sentence the writer
+    // had just typed. Flush it first — saveDocument is the only thing that persists.
+    if (previousId !== active.id && pending !== lastSaved.current) {
+      const previous = nodesRef.current.find((node) => node.id === previousId);
+      if (previous) {
+        setSaveState("Saving…");
+        void saveDocument(previous, pending)
+          .then((revision) => { setNodes((all) => all.map((node) => node.id === previousId ? { ...node, content: pending, revision } : node)); setSaveState("Saved locally"); })
+          .catch((error) => setSaveState(String(error).includes("stale edit") ? "Save conflict — reopen section" : "Save needs attention"));
+      }
+    }
+    const next = loadLocalDocument(active);
+    openId.current = active.id;
+    contentRef.current = next;
+    lastSaved.current = next;
+    setContent(next);
+  }, [active.id]);
   useEffect(() => { if (content === lastSaved.current) return; const timer = window.setTimeout(async () => { setSaveState("Saving…"); try { const revision = await saveDocument(active, content); lastSaved.current = content; setNodes((all) => all.map((node) => node.id === active.id ? { ...node, content, revision } : node)); setSaveState("Saved locally"); } catch (error) { setSaveState(String(error).includes("stale edit") ? "Save conflict — reopen section" : "Save needs attention"); } }, 700); return () => window.clearTimeout(timer); }, [active, content]);
   useEffect(()=>{const plain=content.replace(/<[^>]+>/g," ").trim();const execution=configuredExecution("indexing")??configuredExecution("character-analysis")??configuredExecution("primary-editor");if(!execution||plain.length<40||content!==lastSaved.current)return;const memoryKey=`lillith:memory-source:v1:${project.id}:${active.id}`;if(localStorage.getItem(memoryKey)===content)return;const timer=window.setTimeout(()=>{setSaveState("Saved · Lillith is updating memory…");void extractManuscriptMemory({projectId:project.id,document:active,content,provider:execution.provider,model:execution.model}).then(result=>{localStorage.setItem(memoryKey,content);setCharacters(result.characters);setMemoryActivities(loadMemoryActivities(project.id));setSaveState(result.activity.details.length?`Saved · memory updated (${result.activity.details.length})`:"Saved · memory checked")}).catch(error=>{setSaveState("Saved locally");setAiError(`Project memory: ${String(error)}`)})},2500);return()=>window.clearTimeout(timer)},[active,content,project.id]);
   useEffect(() => { saveCurrentWorkspace({ project, nodes }); }, [project, nodes]);

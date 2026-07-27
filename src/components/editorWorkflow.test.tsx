@@ -3,6 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { EditorPane } from "./EditorPane";
+import { App } from "../App";
 import type { ManuscriptNode } from "../domain/models";
 
 const node: ManuscriptNode = { id:"scene", projectId:"project", parentId:"chapter", kind:"scene", title:"Test Scene", position:0, wordCount:3, content:"<p>salt and salt</p>", revision:0, updatedAt:new Date().toISOString() };
@@ -28,6 +29,34 @@ describe("manuscript editor workflows", () => {
     fireEvent.change(screen.getByPlaceholderText("horror, reveal, low tide"),{target:{value:"horror, reveal"}});
     fireEvent.click(screen.getByRole("button",{name:"Save details"}));
     await waitFor(()=>expect(metadata).toHaveBeenCalledWith({sceneGoal:"Raise the stakes",wordGoal:undefined,tags:["horror","reveal"],povCharacterId:undefined,sceneType:"mixed",sceneLocation:undefined}));
+  });
+
+  it("saves typing that is still inside the autosave debounce when the writer switches scenes", async () => {
+    const now = new Date().toISOString();
+    const workspace = {
+      project: { id: "project", title: "Meret Vale", locale: "en-US", createdAt: now, updatedAt: now },
+      nodes: [
+        { id: "book", projectId: "project", kind: "book", title: "Meret Vale", position: 0, wordCount: 0, revision: 0, updatedAt: now },
+        { id: "chapter", projectId: "project", parentId: "book", kind: "chapter", title: "Chapter One", position: 0, wordCount: 0, revision: 0, updatedAt: now },
+        { id: "sceneA", projectId: "project", parentId: "chapter", kind: "scene", title: "Scene One", position: 0, wordCount: 3, revision: 0, updatedAt: now, content: "<p>salt and salt</p>" },
+        { id: "sceneB", projectId: "project", parentId: "chapter", kind: "scene", title: "Scene Two", position: 1, wordCount: 0, revision: 0, updatedAt: now, content: "<p>other</p>" },
+      ],
+    };
+    localStorage.setItem("lillith:workspace:current", JSON.stringify(workspace));
+    localStorage.setItem("lillith:document:sceneA", "<p>salt and salt</p>");
+    localStorage.setItem("lillith:document:sceneB", "<p>other</p>");
+
+    render(<App />);
+    fireEvent.click(screen.getAllByRole("button", { name: "Manuscript" })[0]);
+    // Edit Scene One, then leave for Scene Two well inside the 700ms debounce.
+    fireEvent.click(screen.getByRole("button", { name: "Find and replace" }));
+    fireEvent.change(screen.getByLabelText("Find"), { target: { value: "salt" } });
+    fireEvent.change(screen.getByLabelText("Replace"), { target: { value: "brine" } });
+    fireEvent.click(screen.getByRole("button", { name: "Replace all" }));
+    fireEvent.click(screen.getByRole("button", { name: "Scene Two" }));
+
+    await waitFor(() => expect(localStorage.getItem("lillith:document:sceneA")).toBe("<p>brine and brine</p>"));
+    expect(localStorage.getItem("lillith:document:sceneB")).toBe("<p>other</p>");
   });
 
   it("hydrates scene location from the local Story Bible", async () => {
