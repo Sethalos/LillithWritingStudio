@@ -77,13 +77,27 @@ describe("ManuscriptTree", () => {
     const onCreate = vi.fn();
     render(<ManuscriptTree nodes={nodes} activeId="s1" onSelect={() => undefined} onCreate={onCreate} onRename={() => undefined} onDelete={() => undefined} />);
     fireEvent.click(screen.getByRole("button", { name: /actions for Chapter One/i }));
-    fireEvent.click(screen.getByRole("button", { name: /new scene/i }));
+    fireEvent.click(within(screen.getByRole("menu")).getByRole("button", { name: /new scene/i }));
     expect(onCreate).toHaveBeenCalledWith("scene", "c1");
   });
 
   it("invites the writer to start when the manuscript is empty", () => {
     render(<ManuscriptTree nodes={[]} activeId="" onSelect={() => undefined} onCreate={() => undefined} onRename={() => undefined} onDelete={() => undefined} />);
-    expect(screen.getByText(/no chapters yet/i)).toBeVisible();
+    expect(screen.getByText(/no scenes yet/i)).toBeVisible();
+  });
+
+  it("creates a scene from the header + control, because the vault is flat", () => {
+    const onCreate = vi.fn();
+    render(<ManuscriptTree nodes={nodes} activeId="s1" onSelect={() => undefined} onCreate={onCreate} onRename={() => undefined} onDelete={() => undefined} />);
+    fireEvent.click(screen.getByRole("button", { name: "New scene" }));
+    expect(onCreate).toHaveBeenCalledWith("scene", "c1");
+  });
+
+  it("offers no chapter-creating control anywhere, since nothing can create one", () => {
+    render(<ManuscriptTree nodes={nodes} activeId="s1" onSelect={() => undefined} onCreate={() => undefined} onRename={() => undefined} onDelete={() => undefined} />);
+    expect(screen.queryByRole("button", { name: /new chapter/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /actions for Chapter One/i }));
+    expect(within(screen.getByRole("menu")).queryByRole("button", { name: /new chapter/i })).not.toBeInTheDocument();
   });
 
   it("shows the book's title and total word count in the header", () => {
@@ -97,13 +111,18 @@ describe("ManuscriptTree", () => {
     expect(screen.queryByRole("button", { name: /actions for Meret Vale/i })).not.toBeInTheDocument();
   });
 
-  it("disables New chapter in both the header and the row menu when there is no book node", () => {
+  it("still offers New scene when a chapter has no book above it", () => {
     const orphanNodes: ManuscriptNode[] = [node("c9", "chapter", "Stray Chapter", undefined, 0)];
-    render(<ManuscriptTree nodes={orphanNodes} activeId="" onSelect={() => undefined} onCreate={() => undefined} onRename={() => undefined} onDelete={() => undefined} />);
-    expect(screen.getByRole("button", { name: "New chapter" })).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: /actions for Stray Chapter/i }));
-    const menu = screen.getByRole("menu");
-    expect(within(menu).getByRole("button", { name: /new chapter/i })).toBeDisabled();
+    const onCreate = vi.fn();
+    render(<ManuscriptTree nodes={orphanNodes} activeId="" onSelect={() => undefined} onCreate={onCreate} onRename={() => undefined} onDelete={() => undefined} />);
+    fireEvent.click(screen.getByRole("button", { name: "New scene" }));
+    expect(onCreate).toHaveBeenCalledWith("scene", "c9");
+  });
+
+  it("disables New scene when there is no chapter to put one in", () => {
+    const bookOnly: ManuscriptNode[] = [node("book9", "book", "Empty Book", undefined, 0)];
+    render(<ManuscriptTree nodes={bookOnly} activeId="" onSelect={() => undefined} onCreate={() => undefined} onRename={() => undefined} onDelete={() => undefined} />);
+    expect(screen.getByRole("button", { name: "New scene" })).toBeDisabled();
   });
 
   it("renders a part/act layer between the book and its chapters", () => {

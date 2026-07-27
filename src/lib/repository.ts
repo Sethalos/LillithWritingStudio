@@ -151,6 +151,10 @@ export async function chooseAndCreateProject(title: string, coverImageDataUrl?: 
   return invoke<WorkspaceData>("create_vault_project", { parentPath: selected, title });
 }
 
+// A vault project is flat: `create_vault_chapter` always writes one manuscript
+// markdown file, which the workspace surfaces as a scene. `kind` therefore only
+// shapes the browser-preview fallback below — the UI must not offer to create
+// anything else on the vault path (see ManuscriptTree).
 export async function createManuscriptNode(parentId: string, kind: "chapter" | "scene", title: string, projectId: string): Promise<ManuscriptNode> {
   if (isTauri()) return invoke<ManuscriptNode>("create_vault_chapter", { title });
   return { id: crypto.randomUUID(), projectId, parentId, kind, title, position: Date.now(), wordCount: 0, content: kind === "scene" ? "<p></p>" : undefined, revision: 0, updatedAt: new Date().toISOString() };

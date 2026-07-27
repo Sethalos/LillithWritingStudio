@@ -59,6 +59,32 @@ describe("manuscript editor workflows", () => {
     expect(localStorage.getItem("lillith:document:sceneB")).toBe("<p>other</p>");
   });
 
+  it("opens the scene the + control just created instead of appearing to do nothing", async () => {
+    const now = new Date().toISOString();
+    const workspace = {
+      project: { id: "project", title: "Meret Vale", locale: "en-US", createdAt: now, updatedAt: now },
+      nodes: [
+        { id: "book", projectId: "project", kind: "book", title: "Meret Vale", position: 0, wordCount: 0, revision: 0, updatedAt: now },
+        { id: "chapter", projectId: "project", parentId: "book", kind: "chapter", title: "Chapter One", position: 0, wordCount: 0, revision: 0, updatedAt: now },
+        { id: "sceneA", projectId: "project", parentId: "chapter", kind: "scene", title: "Scene One", position: 0, wordCount: 3, revision: 0, updatedAt: now, content: "<p>salt and salt</p>" },
+      ],
+    };
+    localStorage.setItem("lillith:workspace:current", JSON.stringify(workspace));
+
+    render(<App />);
+    fireEvent.click(screen.getAllByRole("button", { name: "Manuscript" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "New scene" }));
+
+    // The header + used to create an untitled "New chapter" row at the bottom
+    // and leave the editor on the old scene, so the writer clicked again and got
+    // a second empty file. The new row must be the open one.
+    await waitFor(() => {
+      const rows = screen.getAllByRole("button", { name: "New scene" });
+      expect(rows.some((row) => row.getAttribute("aria-current") === "true")).toBe(true);
+    });
+    expect(screen.queryByText("New chapter")).not.toBeInTheDocument();
+  });
+
   it("hydrates scene location from the local Story Bible", async () => {
     const metadata=vi.fn().mockResolvedValue(undefined);
     localStorage.setItem("lillith:story-bible",JSON.stringify([{id:"loc-1",projectId:"project",entityType:"location",name:"Greyhaven Observatory",summary:"A drowned coastal observatory",canonStatus:"canon",facts:[],createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()}]));

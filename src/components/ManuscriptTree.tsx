@@ -25,7 +25,11 @@ export function ManuscriptTree({ nodes, activeId, onSelect, onCreate, onRename, 
   const [deleteFor, setDeleteFor] = useState("");
   const tree = useMemo(() => buildTree(nodes), [nodes]);
   const book = nodes.find((node) => node.kind === "book");
-  const bookId = book?.id ?? "";
+  // The vault is flat: every manuscript markdown file is a scene under the one
+  // synthetic chapter, and nothing in the backend can create a level of
+  // hierarchy. So the tree offers scenes only — a "New chapter" control here
+  // would create a scene titled "New chapter" and look like it had done nothing.
+  const chapterId = nodes.find((node) => node.kind === "chapter")?.id ?? "";
   // The book row is redundant with the header above (which now carries the book's
   // title and total word count), so start the visible list at its children
   // (chapters, or whatever sits under the book — parts, acts, orphans, etc).
@@ -128,12 +132,6 @@ export function ManuscriptTree({ nodes, activeId, onSelect, onCreate, onRename, 
                 {node.kind === "chapter" && (
                   <button onClick={() => { onCreate("scene", node.id); setMenuFor(""); }}>New scene</button>
                 )}
-                <button
-                  disabled={!bookId}
-                  onClick={() => { if (!bookId) return; onCreate("chapter", bookId); setMenuFor(""); }}
-                >
-                  New chapter
-                </button>
                 {!isSynthetic && <button onClick={() => startRename(node.id, node.title)}>Rename</button>}
               </>
             )}
@@ -180,12 +178,12 @@ export function ManuscriptTree({ nodes, activeId, onSelect, onCreate, onRename, 
             </div>
           )}
         </div>
-        <button aria-label="New chapter" onClick={() => onCreate("chapter", bookId)} disabled={!bookId}>
+        <button aria-label="New scene" onClick={() => onCreate("scene", chapterId)} disabled={!chapterId}>
           <Plus size={13} />
         </button>
       </header>
       <div className="tree-scroll">
-        {roots.length ? <ul>{roots.map((item) => renderRow(item, 0))}</ul> : <p className="tree-empty">No chapters yet. Use + to start one.</p>}
+        {roots.length ? <ul>{roots.map((item) => renderRow(item, 0))}</ul> : <p className="tree-empty">No scenes yet. Use + to start one.</p>}
       </div>
     </nav>
   );
