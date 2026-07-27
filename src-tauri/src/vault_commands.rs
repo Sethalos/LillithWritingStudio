@@ -5,7 +5,7 @@ use std::path::Path;
 // NOTE: chapter bodies are stored verbatim (currently TipTap HTML). Converting
 // bodies to true markdown is a later manuscript-editor phase; until then we strip
 // tags here so word counts reflect readable prose, not markup.
-fn word_count(text: &str) -> i64 {
+pub(crate) fn word_count(text: &str) -> i64 {
     let mut plain = String::with_capacity(text.len());
     let mut inside = false;
     for ch in text.chars() {

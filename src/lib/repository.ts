@@ -152,8 +152,17 @@ export async function chooseAndCreateProject(title: string, coverImageDataUrl?: 
 }
 
 export async function createManuscriptNode(parentId: string, kind: "chapter" | "scene", title: string, projectId: string): Promise<ManuscriptNode> {
-  if (isTauri()) return invoke<ManuscriptNode>("create_manuscript_node", { parentId, kind, title });
+  if (isTauri()) return invoke<ManuscriptNode>("create_vault_chapter", { title });
   return { id: crypto.randomUUID(), projectId, parentId, kind, title, position: Date.now(), wordCount: 0, content: kind === "scene" ? "<p></p>" : undefined, revision: 0, updatedAt: new Date().toISOString() };
+}
+
+export async function renameManuscriptNode(node: ManuscriptNode, title: string): Promise<ManuscriptNode> {
+  if (isTauri()) return invoke<ManuscriptNode>("rename_vault_chapter", { documentId: node.id, title });
+  return { ...node, title, updatedAt: new Date().toISOString() };
+}
+
+export async function deleteManuscriptNode(node: ManuscriptNode): Promise<void> {
+  if (isTauri()) return invoke("delete_vault_chapter", { documentId: node.id });
 }
 
 export async function reorderManuscriptNodes(parentId:string,orderedIds:string[],nodes:ManuscriptNode[]):Promise<ManuscriptNode[]>{
