@@ -15,6 +15,7 @@ pub enum VaultError {
     #[error("project folder already exists: {0}")] AlreadyExists(String),
     #[error("not a project folder: {0}")] NotAProject(String),
     #[error("chapter file collision: {0}")] ChapterCollision(String),
+    #[error("a title cannot be empty")] InvalidTitle,
 }
 
 /// Render a note as `---\n<yaml>---\n\n<body>\n`.
@@ -222,6 +223,39 @@ pub fn append_imported_chapters(root: &Path, chapters: &[(String, String)]) -> R
     Ok(created)
 }
 
+/// Create an empty chapter positioned after every existing one.
+pub fn create_chapter(root: &Path, title: &str) -> Result<ChapterMeta, VaultError> {
+    let title = title.trim();
+    if title.is_empty() { return Err(VaultError::InvalidTitle); }
+    let position = list_chapters(root)?.iter().map(|c| c.position).max().map(|p| p + 1).unwrap_or(0);
+    let meta = new_chapter_meta(title, position);
+    write_chapter_file(root, &meta, "<p></p>")?;
+    Ok(meta)
+}
+
+/// Rewrite a chapter's frontmatter title, leaving its body, id, position and
+/// revision untouched. The filename is deliberately left alone: the frontmatter
+/// title is what the workspace reads, and renaming files would break any
+/// Obsidian links the writer has made into the vault.
+pub fn rename_chapter(root: &Path, id: &str, title: &str) -> Result<ChapterMeta, VaultError> {
+    let title = title.trim();
+    if title.is_empty() { return Err(VaultError::InvalidTitle); }
+    let path = find_chapter_path(root, id)?;
+    let text = fs::read_to_string(&path)?;
+    let (mut meta, body) = parse_note::<ChapterMeta>(&text)?;
+    meta.title = title.to_string();
+    meta.updated_at = now_iso();
+    fs::write(&path, render_note(&meta, &body)?)?;
+    Ok(meta)
+}
+
+/// Remove a chapter file. Callers are expected to snapshot first.
+pub fn delete_chapter(root: &Path, id: &str) -> Result<(), VaultError> {
+    let path = find_chapter_path(root, id)?;
+    fs::remove_file(path)?;
+    Ok(())
+}
+
 /// True when a `git` executable is on PATH.
 pub fn git_available() -> bool {
     Command::new("git").arg("--version").output().map(|o| o.status.success()).unwrap_or(false)
@@ -411,6 +445,24 @@ mod tests {
         git_commit(&root, "Initial project").unwrap();
         git_commit(&root, "Write chapter one").unwrap();
     }
+
+    #[test]
+    fn creates_a_chapter_at_the_end(){let dir=tempfile::tempdir().unwrap();let root=create_project(dir.path(),"Test").unwrap();let first=create_chapter(&root,"Prologue").unwrap();let second=create_chapter(&root,"Chapter One").unwrap();assert!(second.position>first.position);let all=list_chapters(&root).unwrap();assert_eq!(all.last().unwrap().title,"Chapter One");}
+
+    #[test]
+    fn renames_a_chapter_without_touching_its_body(){let dir=tempfile::tempdir().unwrap();let root=create_project(dir.path(),"Test").unwrap();let meta=create_chapter(&root,"Imported Manuscript").unwrap();save_chapter(&root,&meta.id,"<p>The rain came sideways.</p>",meta.revision).unwrap();let renamed=rename_chapter(&root,&meta.id,"Prologue").unwrap();assert_eq!(renamed.title,"Prologue");let(read_meta,body)=read_chapter(&root,&meta.id).unwrap();assert_eq!(read_meta.title,"Prologue");assert_eq!(body,"<p>The rain came sideways.</p>");assert_eq!(read_meta.id,meta.id);}
+
+    #[test]
+    fn rename_rejects_an_empty_title(){let dir=tempfile::tempdir().unwrap();let root=create_project(dir.path(),"Test").unwrap();let meta=create_chapter(&root,"Chapter One").unwrap();assert!(rename_chapter(&root,&meta.id,"   ").is_err());assert_eq!(read_chapter(&root,&meta.id).unwrap().0.title,"Chapter One");}
+
+    #[test]
+    fn rename_preserves_position_and_revision(){let dir=tempfile::tempdir().unwrap();let root=create_project(dir.path(),"Test").unwrap();create_chapter(&root,"First").unwrap();let meta=create_chapter(&root,"Second").unwrap();save_chapter(&root,&meta.id,"<p>x</p>",meta.revision).unwrap();let before=read_chapter(&root,&meta.id).unwrap().0;let renamed=rename_chapter(&root,&meta.id,"Renamed").unwrap();assert_eq!(renamed.position,before.position);assert_eq!(renamed.revision,before.revision);}
+
+    #[test]
+    fn deletes_a_chapter_and_leaves_the_others(){let dir=tempfile::tempdir().unwrap();let root=create_project(dir.path(),"Test").unwrap();let seeded_count=list_chapters(&root).unwrap().len();let keep=create_chapter(&root,"Keep").unwrap();let drop=create_chapter(&root,"Drop").unwrap();delete_chapter(&root,&drop.id).unwrap();let all=list_chapters(&root).unwrap();assert_eq!(all.len(),seeded_count+1);assert!(all.iter().any(|c|c.id==keep.id));assert!(!all.iter().any(|c|c.id==drop.id));assert!(read_chapter(&root,&drop.id).is_err());}
+
+    #[test]
+    fn deleting_a_missing_chapter_errors(){let dir=tempfile::tempdir().unwrap();let root=create_project(dir.path(),"Test").unwrap();assert!(delete_chapter(&root,"no-such-id").is_err());}
 
     #[test]
     fn git_commit_is_ok_when_nothing_changed() {
