@@ -21,9 +21,14 @@ export async function loadWorkflowState(project: Project, nodes: ManuscriptNode[
     try {
       const stored = await invoke<WorkflowState | null>("load_vault_workflow_state");
       return stored ? inferWorkflowState(project, nodes, characters, stored) : inferred;
-    } catch {
-      // A first-run project has never saved workflow.json yet; fall back to the inferred state.
-      return inferred;
+    } catch (error) {
+      // No vault project is open yet (e.g. before the writer opens one) — that is
+      // not a failure, fall back to the inferred state. A genuinely corrupt
+      // workflow.json is a real error and must NOT be swallowed the same way:
+      // that would silently revert the writer's saved settings to inferred
+      // defaults, and the very next save would overwrite the file with them.
+      if (String(error).includes("No project is open")) return inferred;
+      throw error;
     }
   }
   const stored = readBrowserState(project.id);

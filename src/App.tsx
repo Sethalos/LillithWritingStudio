@@ -112,6 +112,8 @@ export function App() {
     let cancelled = false;
     void loadWorkflowState(project, nodes, characters).then((next) => {
       if (!cancelled) setWorkflow(next);
+    }).catch((error) => {
+      if (!cancelled) setAiError(String(error));
     });
     return () => {
       cancelled = true;

@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { invoke } from "@tauri-apps/api/core";
 import { project as sampleProject } from "../sample";
 import { createBlankWorkflowState, inferWorkflowState } from "../domain/workflow";
 import { loadWorkflowState, persistWorkflowState } from "./workflowRepository";
+
+vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
 beforeEach(() => localStorage.clear());
 
@@ -31,5 +34,31 @@ describe("workflow repository", () => {
 
     expect(reloaded.currentPhaseId).toBe("creative_north_star");
     expect(reloaded.source).toBe("manual");
+  });
+});
+
+describe("workflow repository on a vault project (Tauri)", () => {
+  beforeEach(() => {
+    (window as unknown as { __TAURI_INTERNALS__: unknown }).__TAURI_INTERNALS__ = {};
+    vi.mocked(invoke).mockReset();
+  });
+  afterEach(() => {
+    delete (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
+  });
+
+  it("falls back to inferred state when no vault project is open yet, without throwing", async () => {
+    vi.mocked(invoke).mockRejectedValue("No project is open");
+    const project = { ...sampleProject, title: "The Wake" };
+
+    const result = await loadWorkflowState(project, [], []);
+
+    expect(result.currentPhaseId).toBe("idea_capture");
+  });
+
+  it("propagates a corrupt workflow.json instead of silently reverting to inferred defaults", async () => {
+    vi.mocked(invoke).mockRejectedValue("invalid workflow state");
+    const project = { ...sampleProject, title: "The Wake" };
+
+    await expect(loadWorkflowState(project, [], [])).rejects.toBeTruthy();
   });
 });

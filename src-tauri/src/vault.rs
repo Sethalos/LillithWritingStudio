@@ -258,12 +258,15 @@ pub fn delete_chapter(root: &Path, id: &str) -> Result<(), VaultError> {
 }
 
 /// Read the stored workflow state, or None when the project has never saved one.
+/// A present-but-unparseable file (truncated write, hand-edit gone wrong) is a
+/// real error, not "no state" — swallowing it would let a corrupt file look
+/// like a fresh project and get silently overwritten with inferred defaults.
 pub fn read_workflow_state(root: &Path) -> Result<Option<serde_json::Value>, VaultError> {
     let path = root.join("workflow.json");
     if !path.exists() { return Ok(None); }
     let text = fs::read_to_string(path)?;
     if text.trim().is_empty() { return Ok(None); }
-    Ok(serde_json::from_str(&text).ok())
+    serde_json::from_str(&text).map(Some).map_err(|_| VaultError::InvalidWorkflowState)
 }
 
 /// Write the workflow state as pretty JSON so vault diffs stay readable.
@@ -483,6 +486,12 @@ mod tests {
 
     #[test]
     fn workflow_state_round_trips_through_the_vault(){let dir=tempfile::tempdir().unwrap();let root=create_project(dir.path(),"Test").unwrap();assert!(read_workflow_state(&root).unwrap().is_none());let state=serde_json::json!({"projectId":"p1","currentPhaseId":"idea_capture","projectBrief":{"genre":"Dark Fantasy","pov":"third-limited"}});write_workflow_state(&root,&state).unwrap();let loaded=read_workflow_state(&root).unwrap().expect("expected stored state");assert_eq!(loaded["projectBrief"]["genre"],"Dark Fantasy");assert_eq!(loaded["projectBrief"]["pov"],"third-limited");}
+
+    #[test]
+    fn read_workflow_state_treats_absent_and_empty_files_as_no_state(){let dir=tempfile::tempdir().unwrap();let root=create_project(dir.path(),"Test").unwrap();assert!(read_workflow_state(&root).unwrap().is_none());fs::write(root.join("workflow.json"),"   \n").unwrap();assert!(read_workflow_state(&root).unwrap().is_none());}
+
+    #[test]
+    fn read_workflow_state_rejects_a_corrupt_file_instead_of_hiding_it(){let dir=tempfile::tempdir().unwrap();let root=create_project(dir.path(),"Test").unwrap();fs::write(root.join("workflow.json"),"{ not valid json").unwrap();let result=read_workflow_state(&root);assert!(matches!(result,Err(VaultError::InvalidWorkflowState)),"expected InvalidWorkflowState, got {result:?}");}
 
     #[test]
     fn git_commit_is_ok_when_nothing_changed() {
