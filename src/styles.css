@@ -829,6 +829,16 @@ select option { color:#efe6d4; background:#141c24; }
 .tree-menu { margin:2px 8px 4px 30px; border:1px solid #4a3a26; border-radius:6px; background:#1d1509; overflow:hidden; }
 .tree-menu button { display:block; width:100%; border:0; background:transparent; color:#d9d0c2; font-size:11px; text-align:left; padding:6px 10px; cursor:pointer; }
 .tree-menu button:hover { background:#2a1f10; color:#f5e9d4; }
+.tree-rename { margin:2px 8px 4px 30px; }
+.tree-rename input { width:100%; box-sizing:border-box; border:1px solid #4a3a26; border-radius:6px; background:#1d1509; color:#f5e9d4; font-size:11px; padding:6px 10px; }
+.tree-delete-confirm { margin:2px 8px 4px 30px; border:1px solid #5a2b28; border-radius:6px; background:#1d1209; padding:8px 10px; display:flex; flex-direction:column; gap:6px; }
+.tree-delete-confirm p { margin:0; color:#d9d0c2; font-size:11px; line-height:1.4; }
+.tree-delete-confirm-actions { display:flex; gap:6px; }
+.tree-delete-confirm button { border:0; border-radius:4px; font-size:11px; padding:6px 10px; cursor:pointer; }
+.tree-delete-confirm button:first-of-type { background:#7a2c26; color:#f5e9d4; }
+.tree-delete-confirm button:first-of-type:hover { background:#932f26; }
+.tree-delete-confirm button:last-of-type { background:transparent; color:#7d8894; }
+.tree-delete-confirm button:last-of-type:hover { color:#d9d0c2; }
 .tree-empty { margin:14px; color:#7d8894; font-size:11px; line-height:1.5; }
 @media (max-width:1400px) { .app-frame:has(.manuscript-tree) { grid-template-columns:205px 208px 1fr; } }
 @media (max-width:1100px) { .app-frame:has(.manuscript-tree) { grid-template-columns:205px 1fr; } .manuscript-tree { display:none; } }
