@@ -72,6 +72,8 @@ button { font:inherit; color:inherit; }
 .topbar-actions button.primary { border-color:#d6a54f; background:#d6a54f; color:#20180f; }
 .avatar-pill { width:30px; height:30px; display:grid; place-items:center; border-radius:50%; background:#1f2731; color:#f4ede0; font-size:12px; border:1px solid #33404d; }
 .user-name { color:#d7dfea; font-size:12px; white-space:nowrap; }
+.workspace-alert { flex:none; display:flex; align-items:center; gap:12px; margin:12px 12px 0; padding:10px 14px; border:1px solid #a8543c; border-radius:10px; background:#2a150f; color:#f6d9cd; font-size:12px; line-height:1.5; }
+.workspace-alert button { flex:none; margin-left:auto; border:1px solid #a8543c; border-radius:8px; background:#3a1c14; color:#f6d9cd; padding:5px 10px; }
 .workspace-body { flex:1; min-height:0; display:grid; grid-template-columns:minmax(0,1fr); gap:12px; padding:12px; overflow:hidden; }
 .workspace-body.dashboard-workspace { grid-template-columns:minmax(0,1fr); }
 .dashboard-workspace .center-pane { border-radius:10px; }

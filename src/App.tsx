@@ -71,6 +71,14 @@ export function App() {
   const [aiRunning, setAiRunning] = useState(false);
   const [requestedEditingMode,setRequestedEditingMode]=useState<EditingMode>("tracked-rewrite");
   const [aiError, setAiError] = useState("");
+  // `aiError` only renders inside AiPanel, which is mounted on the "ai" and
+  // "manuscript" routes. Project-settings failures happen on the default
+  // "dashboard" route, where nothing could show them: a corrupt workflow.json
+  // propagated all the way here and then vanished, leaving the writer an empty
+  // dashboard whose first edit overwrote their real settings with blanks.
+  // This banner sits between the topbar and the workspace body, so it is visible
+  // on every route including the dashboard.
+  const [workflowError, setWorkflowError] = useState("");
   const [commentSelection,setCommentSelection]=useState<CommentSelection>();
   const [commentAnchorText,setCommentAnchorText]=useState<string>();
   const lastSaved = useRef(content);
@@ -111,9 +119,12 @@ export function App() {
   useEffect(() => {
     let cancelled = false;
     void loadWorkflowState(project, nodes, characters).then((next) => {
-      if (!cancelled) setWorkflow(next);
+      if (!cancelled) { setWorkflow(next); setWorkflowError(""); }
     }).catch((error) => {
-      if (!cancelled) setAiError(String(error));
+      // Do NOT fall back to inferred defaults here: leaving the loaded-but-wrong
+      // state in place and saying so is what stops the next dashboard edit from
+      // persisting blanks over the writer's real settings.
+      if (!cancelled) setWorkflowError(`Your project settings could not be loaded, so nothing shown here is authoritative — editing them may overwrite the saved file. ${String(error)}`);
     });
     return () => {
       cancelled = true;
@@ -130,12 +141,17 @@ export function App() {
   const deleteNode = async (id: string) => { const target = nodes.find((node) => node.id === id); if (!target) return; const isLastScene = target.kind === "scene" && !nodes.some((node) => node.kind === "scene" && node.id !== id); if (isLastScene) throw new Error("Add another scene before deleting the last one."); await deleteManuscriptNode(target); if (id === activeId) { const survivor = nodes.find((node) => node.kind === "scene" && node.id !== id); if (survivor) setActiveId(survivor.id); } setNodes((all) => all.filter((node) => node.id !== id)); };
   const startComment=async(selection:CommentSelection)=>{try{if(content!==lastSaved.current){setSaveState("Saving…");const revision=await saveDocument(active,content);lastSaved.current=content;setNodes(all=>all.map(node=>node.id===active.id?{...node,content,revision}:node));setSaveState("Saved locally")}setCommentSelection(selection);setInspector("comments")}catch(error){setSaveState("Save needs attention");setAiError(String(error))}};
   const saveWorkflow = async (next: WorkflowState) => {
+    // Optimistic, but rolled back on failure: showing the new genre while disk
+    // holds nothing is how a writer comes to trust a setting that was never saved.
+    const previous = workflow;
     setWorkflow(next);
     try {
       const saved = await persistWorkflowState(next);
       setWorkflow(saved);
+      setWorkflowError("");
     } catch (error) {
-      setAiError(String(error));
+      setWorkflow(previous);
+      setWorkflowError(`Your project settings could not be saved, so this change was undone. ${String(error)}`);
     }
   };
   const routeWorkspace = (target: WorkflowWorkspaceTarget) => {
@@ -248,6 +264,13 @@ export function App() {
           <div className="avatar-pill">RL</div>
         </div>
       </header>
+
+      {workflowError && (
+        <div className="workspace-alert" role="alert">
+          <span>{workflowError}</span>
+          <button onClick={() => setWorkflowError("")}>Dismiss</button>
+        </div>
+      )}
 
       <div className={`workspace-body ${inspector === "dashboard" ? "dashboard-workspace" : ""}`}>
         <main className="center-pane">

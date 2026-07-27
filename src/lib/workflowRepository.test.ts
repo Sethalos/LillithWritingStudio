@@ -47,12 +47,24 @@ describe("workflow repository on a vault project (Tauri)", () => {
   });
 
   it("falls back to inferred state when no vault project is open yet, without throwing", async () => {
-    vi.mocked(invoke).mockRejectedValue("No project is open");
+    // The backend answers null (not an error) when no project is open, so this
+    // path must not depend on matching any Rust error wording.
+    vi.mocked(invoke).mockResolvedValue(null);
     const project = { ...sampleProject, title: "The Wake" };
 
     const result = await loadWorkflowState(project, [], []);
 
     expect(result.currentPhaseId).toBe("idea_capture");
+  });
+
+  it("propagates any backend failure rather than guessing at its message", async () => {
+    // Previously only messages containing "No project is open" were treated as
+    // first-run; anything else — including a reworded version of that very
+    // condition — must surface instead of silently becoming inferred defaults.
+    vi.mocked(invoke).mockRejectedValue("Vault lock poisoned");
+    const project = { ...sampleProject, title: "The Wake" };
+
+    await expect(loadWorkflowState(project, [], [])).rejects.toBeTruthy();
   });
 
   it("propagates a corrupt workflow.json instead of silently reverting to inferred defaults", async () => {

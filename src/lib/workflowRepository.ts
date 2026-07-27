@@ -18,18 +18,14 @@ function readBrowserState(projectId: string): WorkflowState | null {
 export async function loadWorkflowState(project: Project, nodes: ManuscriptNode[], characters: Character[]): Promise<WorkflowState> {
   const inferred = inferWorkflowState(project, nodes, characters, createBlankWorkflowState(project));
   if (isTauri()) {
-    try {
-      const stored = await invoke<WorkflowState | null>("load_vault_workflow_state");
-      return stored ? inferWorkflowState(project, nodes, characters, stored) : inferred;
-    } catch (error) {
-      // No vault project is open yet (e.g. before the writer opens one) — that is
-      // not a failure, fall back to the inferred state. A genuinely corrupt
-      // workflow.json is a real error and must NOT be swallowed the same way:
-      // that would silently revert the writer's saved settings to inferred
-      // defaults, and the very next save would overwrite the file with them.
-      if (String(error).includes("No project is open")) return inferred;
-      throw error;
-    }
+    // No catch on purpose. "No project is open" is not an error the backend
+    // raises any more — it answers null, because there genuinely is no state to
+    // load — so every remaining rejection (a corrupt workflow.json above all) is
+    // real and must reach the writer. Recognising first-run by matching an error
+    // string would mean a Rust copy-edit could silently revert saved settings to
+    // inferred defaults, with the next save overwriting the file with them.
+    const stored = await invoke<WorkflowState | null>("load_vault_workflow_state");
+    return stored ? inferWorkflowState(project, nodes, characters, stored) : inferred;
   }
   const stored = readBrowserState(project.id);
   return stored ? inferWorkflowState(project, nodes, characters, stored) : inferred;
