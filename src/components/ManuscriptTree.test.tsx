@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ManuscriptTree } from "./ManuscriptTree";
 import type { ManuscriptNode } from "../domain/models";
@@ -52,5 +52,41 @@ describe("ManuscriptTree", () => {
   it("invites the writer to start when the manuscript is empty", () => {
     render(<ManuscriptTree nodes={[]} activeId="" onSelect={() => undefined} onCreate={() => undefined} />);
     expect(screen.getByText(/no chapters yet/i)).toBeVisible();
+  });
+
+  it("shows the book's title and total word count in the header", () => {
+    render(<ManuscriptTree nodes={nodes} activeId="s1" onSelect={() => undefined} onCreate={() => undefined} />);
+    expect(screen.getByText("Meret Vale")).toBeVisible();
+    expect(screen.getByText("530 words")).toBeVisible();
+  });
+
+  it("does not render the book node itself as a tree row", () => {
+    render(<ManuscriptTree nodes={nodes} activeId="s1" onSelect={() => undefined} onCreate={() => undefined} />);
+    expect(screen.queryByRole("button", { name: /actions for Meret Vale/i })).not.toBeInTheDocument();
+  });
+
+  it("disables New chapter in both the header and the row menu when there is no book node", () => {
+    const orphanNodes: ManuscriptNode[] = [node("c9", "chapter", "Stray Chapter", undefined, 0)];
+    render(<ManuscriptTree nodes={orphanNodes} activeId="" onSelect={() => undefined} onCreate={() => undefined} />);
+    expect(screen.getByRole("button", { name: "New chapter" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: /actions for Stray Chapter/i }));
+    const menu = screen.getByRole("menu");
+    expect(within(menu).getByRole("button", { name: /new chapter/i })).toBeDisabled();
+  });
+
+  it("renders a part/act layer between the book and its chapters", () => {
+    const nodesWithPart: ManuscriptNode[] = [
+      node("book2", "book", "Other Book", undefined, 0),
+      node("part1", "part", "Part One", "book2", 0),
+      node("c2", "chapter", "Chapter Two", "part1", 0),
+      node("s3", "scene", "Scene Three", "c2", 0, 150),
+    ];
+    render(<ManuscriptTree nodes={nodesWithPart} activeId="s3" onSelect={() => undefined} onCreate={() => undefined} />);
+    expect(screen.getByText("Part One")).toBeVisible();
+    expect(screen.getByText("Chapter Two")).toBeVisible();
+    expect(screen.getByText("Scene Three")).toBeVisible();
+    expect(screen.getByText("Other Book")).toBeVisible();
+    expect(screen.getByText("150 words")).toBeVisible();
+    expect(screen.queryByRole("button", { name: /actions for Other Book/i })).not.toBeInTheDocument();
   });
 });

@@ -14,10 +14,13 @@ export function ManuscriptTree({ nodes, activeId, onSelect, onCreate }: Props) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [menuFor, setMenuFor] = useState("");
   const tree = buildTree(nodes);
-  const bookId = nodes.find((node) => node.kind === "book")?.id ?? "";
-  // The book row is redundant with the "Manuscript" header above, so start the
-  // visible list at its children (chapters, or whatever sits under the book).
+  const book = nodes.find((node) => node.kind === "book");
+  const bookId = book?.id ?? "";
+  // The book row is redundant with the header above (which now carries the book's
+  // title and total word count), so start the visible list at its children
+  // (chapters, or whatever sits under the book — parts, acts, orphans, etc).
   const roots = tree.flatMap((item) => (item.node.kind === "book" ? item.children : [item]));
+  const totalWords = roots.reduce((total, item) => total + item.words, 0);
 
   const toggle = (id: string) =>
     setCollapsed((all) => {
@@ -57,7 +60,12 @@ export function ManuscriptTree({ nodes, activeId, onSelect, onCreate }: Props) {
             {node.kind === "chapter" && (
               <button onClick={() => { onCreate("scene", node.id); setMenuFor(""); }}>New scene</button>
             )}
-            <button onClick={() => { onCreate("chapter", bookId || node.id); setMenuFor(""); }}>New chapter</button>
+            <button
+              disabled={!bookId}
+              onClick={() => { if (!bookId) return; onCreate("chapter", bookId); setMenuFor(""); }}
+            >
+              New chapter
+            </button>
           </div>
         )}
         {children.length > 0 && !isCollapsed && <ul>{children.map((child) => renderRow(child, depth + 1))}</ul>}
@@ -68,7 +76,15 @@ export function ManuscriptTree({ nodes, activeId, onSelect, onCreate }: Props) {
   return (
     <nav className="manuscript-tree panel" aria-label="Manuscript contents">
       <header className="tree-header">
-        <span>Manuscript</span>
+        <div className="tree-header-info">
+          <span className="tree-header-label">Manuscript</span>
+          {book && (
+            <div className="tree-header-book">
+              <span className="tree-header-book-title">{book.title}</span>
+              <span className="tree-header-book-words">{totalWords.toLocaleString()} words</span>
+            </div>
+          )}
+        </div>
         <button aria-label="New chapter" onClick={() => onCreate("chapter", bookId)} disabled={!bookId}>
           <Plus size={13} />
         </button>
