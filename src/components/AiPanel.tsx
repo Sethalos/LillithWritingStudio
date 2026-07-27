@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, Clock3, Eye, FileText, Image as ImageIcon, MessageSquare, Paperclip, RotateCcw, Send, Sparkles, Trash2, X } from "lucide-react";
-import type { ChangeProposal, ChatAttachment, ContextPackage, EditingMode, ProposalDecision } from "../domain/ai";
+import type { ChangeProposal, ChatAttachment, ContextPackage, EditingMode, ManuscriptProposal, ProposalDecision } from "../domain/ai";
 import type { ProposalSegmentDecision, ReviewProposal } from "../lib/aiEditorRepository";
 import { configuredExecution, estimateExecutionCost } from "../lib/providerRepository";
 import { runAiChat } from "../lib/aiChatRepository";
@@ -30,6 +30,7 @@ interface ChatEntry {
   content: string;
   createdAt: string;
   attachments?: ChatAttachment[];
+  proposal?: ManuscriptProposal;
 }
 
 const chatKey = (projectId: string) => `lillith:ai-chat:v1:${projectId}`;
@@ -50,6 +51,7 @@ function buildSystemPrompt(workflow: WorkflowState, context: ContextPackage, sel
     "When the user asks for prose, produce usable text the user can paste into the manuscript.",
     "When the user asks for ideas, offer clear options and explain tradeoffs briefly.",
     "Never overwrite manuscript text silently.",
+    "Reply with a single JSON object. Always include a \"text\" field with your conversational message to the writer. ONLY when the writer has asked you to write or draft new prose to add to the manuscript, also include a \"proposal\" object: {\"action\":\"append\",\"text\":\"<the prose to add>\"}. Put that prose in proposal.text, not in text. Never include a proposal when brainstorming, outlining, discussing, or answering questions, and never invent a proposal the writer did not ask for.",
     "",
     `Workflow phase: ${workflow.currentPhaseId}`,
     `Current recommendation: ${workflow.recommendation.title}`,
@@ -129,7 +131,7 @@ export function AiPanel({ workflow, context, proposal, decision, onDecision, mod
 
   useEffect(() => {
     if (!chatLoaded) return;
-    const persistent=chatEntries.map(entry=>({...entry,attachments:entry.attachments?.map(({dataUrl:_,text:__,...attachment})=>attachment)}));
+    const persistent=chatEntries.map(entry=>({...entry,proposal:undefined,attachments:entry.attachments?.map(({dataUrl:_,text:__,...attachment})=>attachment)}));
     localStorage.setItem(storedKey, JSON.stringify(persistent));
   }, [chatEntries, chatLoaded, storedKey]);
 
@@ -176,6 +178,7 @@ export function AiPanel({ workflow, context, proposal, decision, onDecision, mod
           role: "assistant",
           content: response.text,
           createdAt: new Date().toISOString(),
+          proposal: response.proposal ?? undefined,
         },
       ]);
       setChatUsage({ inputTokens: response.inputTokens, outputTokens: response.outputTokens });
@@ -212,6 +215,17 @@ export function AiPanel({ workflow, context, proposal, decision, onDecision, mod
     onKeepText(text);
     selection?.removeAllRanges();
     setKeepHint("");
+  };
+
+  const approveProposal = (entryId: string) => {
+    const entry = chatEntries.find((item) => item.id === entryId);
+    if (!entry?.proposal || !onKeepText) return;
+    onKeepText(entry.proposal.text);
+    setChatEntries((all) => all.map((item) => item.id === entryId ? { ...item, proposal: undefined } : item));
+  };
+
+  const discardProposal = (entryId: string) => {
+    setChatEntries((all) => all.map((item) => item.id === entryId ? { ...item, proposal: undefined } : item));
   };
 
   const clearChat = () => {
@@ -258,7 +272,7 @@ export function AiPanel({ workflow, context, proposal, decision, onDecision, mod
   if(onKeepText){return <div className="lillith-chat-simple">
     <header className="lillith-chat-header"><div className="lillith-avatar">L</div><div><strong>Lillith</strong><small>{execution?`${execution.provider.label} · ${execution.model}`:"Configure a model to begin"}</small></div><button type="button" className="keep-in-manuscript" onClick={keepChatSelection} title="Append the text you've highlighted in the chat to the manuscript"><Check size={14}/> Keep in manuscript</button></header>
     <div className="chat-transcript" ref={transcriptRef}>
-      {chatEntries.map(entry=><article key={entry.id} className={`chat-message ${entry.role}`}><span>{entry.role==="user"?"You":"Lillith"}</span><p>{entry.content}</p>{entry.attachments?.length?<div className="message-attachments">{entry.attachments.map(item=><span key={`${entry.id}-${item.name}`}>{item.mimeType.startsWith("image/")?<ImageIcon size={12}/>:<FileText size={12}/>} {item.name}</span>)}</div>:null}</article>)}
+      {chatEntries.map(entry=><article key={entry.id} className={`chat-message ${entry.role}`}><span>{entry.role==="user"?"You":"Lillith"}</span><p>{entry.content}</p>{entry.attachments?.length?<div className="message-attachments">{entry.attachments.map(item=><span key={`${entry.id}-${item.name}`}>{item.mimeType.startsWith("image/")?<ImageIcon size={12}/>:<FileText size={12}/>} {item.name}</span>)}</div>:null}{entry.role==="assistant"&&entry.proposal?<div className="manuscript-proposal" role="group" aria-label="Manuscript proposal"><div className="proposal-label"><Sparkles size={13}/> Lillith wants to add this to your manuscript</div><div className="proposal-preview">{entry.proposal.text}</div><div className="proposal-actions"><button type="button" className="proposal-approve" onClick={()=>approveProposal(entry.id)}><Check size={13}/> Approve</button><button type="button" className="proposal-discard" onClick={()=>discardProposal(entry.id)}><X size={13}/> Discard</button></div></div>:null}</article>)}
       {sending&&<div className="lillith-typing"><i/><i/><i/><span>Lillith is thinking…</span></div>}
     </div>
     {keepHint&&<div className="keep-hint" role="status">{keepHint}</div>}

@@ -98,4 +98,42 @@ describe("ai workspace", () => {
     fireEvent.click(run);
     expect(onRun).toHaveBeenCalledWith("Strengthen character voice","direct-apply");
   });
+
+  it("shows an append proposal card in the building chat and applies it on approve", async () => {
+    localStorage.setItem(
+      "lillith:model-config:v1",
+      JSON.stringify({
+        providers: [
+          { id: "p1", kind: "openai-compatible", location: "local", label: "Local", baseUrl: "http://127.0.0.1:8080/v1", hasCredential: false, enabled: true, headers: {} },
+        ],
+        routes: [
+          { task: "brainstorm", label: "Brainstorming", description: "Ideas", providerId: "p1", modelId: "demo-model" },
+        ],
+      }),
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          choices: [{ message: { content: JSON.stringify({ text: "I drafted the opening for you.", proposal: { action: "append", text: "The rain came sideways that night." } }) } }],
+          usage: { prompt_tokens: 8, completion_tokens: 20 },
+        }),
+      } as Response)),
+    );
+
+    const onKeepText = vi.fn();
+    render(<AiPanel workflow={workflow} context={context} decision="pending" modelLabel="Local · demo-model" onDecision={() => undefined} onRun={() => undefined} running={false} selectedText="" onKeepText={onKeepText} currentManuscript="" />);
+
+    fireEvent.change(screen.getByPlaceholderText(/message lillith/i), { target: { value: "Draft the opening paragraph" } });
+    fireEvent.click(screen.getByRole("button", { name: /send message/i }));
+
+    await waitFor(() => expect(screen.getByText(/wants to add this to your manuscript/i)).toBeVisible());
+    expect(screen.getByText(/The rain came sideways that night\./)).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: /approve/i }));
+    expect(onKeepText).toHaveBeenCalledWith("The rain came sideways that night.");
+    await waitFor(() => expect(screen.queryByText(/wants to add this to your manuscript/i)).not.toBeInTheDocument());
+  });
 });

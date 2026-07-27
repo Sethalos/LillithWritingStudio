@@ -1,5 +1,6 @@
 import type { ChatMessage, ChatResponse } from "../domain/ai";
 import type { DiscoveredModel, ProviderConfiguration } from "../domain/providers";
+import { parseAssistantMessage } from "./manuscriptProposal";
 
 const secretKey = (providerId: string) => `lillith:provider-secret:v1:${providerId}`;
 
@@ -286,13 +287,15 @@ async function browserChat(
     body: JSON.stringify(body),
   });
   const payload = await parseJsonResponse(response, configuration.label);
-  const text = responseText(payload, kind);
-  if (!text) throw new Error("Provider returned no chat content.");
+  const raw = responseText(payload, kind);
+  if (!raw) throw new Error("Provider returned no chat content.");
+  const parsed = parseAssistantMessage(raw);
   const usage = usageCounts(payload, kind);
   return {
-    text,
+    text: parsed.text,
+    proposal: parsed.proposal ?? undefined,
     inputTokens: usage.inputTokens ?? estimateTokens(system + messages.map((message) => message.content).join("")),
-    outputTokens: usage.outputTokens ?? estimateTokens(text),
+    outputTokens: usage.outputTokens ?? estimateTokens(parsed.text),
   };
 }
 
