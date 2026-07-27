@@ -41,6 +41,45 @@ describe("buildTree", () => {
   it("returns an empty array for no nodes", () => {
     expect(buildTree([])).toEqual([]);
   });
+
+  it("handles self-parenting nodes (cycle of length 1) by attaching at root", () => {
+    const selfParent = node("cyclic", "chapter", "Self Parent", "cyclic", 0, 100);
+    const tree = buildTree([...fixture, selfParent]);
+    // Self-parenting node should appear at root, not vanish
+    expect(tree.map((item) => item.node.id)).toContain("cyclic");
+    // The node should not have infinite children
+    const cyclicNode = tree.find((item) => item.node.id === "cyclic");
+    expect(cyclicNode?.children).toHaveLength(0);
+  });
+
+  it("handles two-node cycles by attaching both at root", () => {
+    const a = node("a", "chapter", "Chapter A", "b", 0);
+    const b = node("b", "chapter", "Chapter B", "a", 1);
+    const tree = buildTree([...fixture, a, b]);
+    const ids = tree.map((item) => item.node.id);
+    // Both nodes in the cycle should appear in output at root
+    expect(ids).toContain("a");
+    expect(ids).toContain("b");
+    // They should be siblings at root (not nested)
+    const aNode = tree.find((item) => item.node.id === "a");
+    const bNode = tree.find((item) => item.node.id === "b");
+    expect(aNode?.children).toHaveLength(0);
+    expect(bNode?.children).toHaveLength(0);
+  });
+
+  it("handles cycles with children by rendering the cycle and its descendants", () => {
+    // Create a cycle: cycA -> cycB -> cycA, with cycB having a child
+    const cycA = node("cycA", "chapter", "Cycle A", "cycB", 0, 50);
+    const cycB = node("cycB", "chapter", "Cycle B", "cycA", 1, 60);
+    const childOfCycB = node("sceneCyc", "scene", "Scene in Cycle B", "cycB", 0, 150);
+    const tree = buildTree([...fixture, cycA, cycB, childOfCycB]);
+    const ids = tree.map((item) => item.node.id);
+    // All nodes in the cycle should appear (not be silently dropped)
+    expect(ids).toContain("cycA");
+    expect(ids).toContain("cycB");
+    // Children of cyclic nodes should also appear
+    expect(ids).toContain("sceneCyc");
+  });
 });
 
 describe("describePath", () => {
